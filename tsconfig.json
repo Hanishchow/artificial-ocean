@@ -1,0 +1,9 @@
+{
+  "files": [],
+  "compilerOptions": {
+    "paths": {
+      "@ocean/*": ["./packages/*/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/src/**/*", "apps/*/src/**/*", "tests/**/*"]
+}
