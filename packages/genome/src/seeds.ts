@@ -190,12 +190,51 @@ export const SEEDS: readonly Seed[] = [
     }),
   },
   {
+    name: "inert",
+    note:
+      "THE CONTROL. Amplitude zero: it does not pulse at all, and it must " +
+      "therefore not move. Measured at exactly 0.000 units/sec with a 0% " +
+      "cavity swing, which is the evidence that thrust comes from the gait " +
+      "rather than from a numerical artefact leaking momentum into the body.",
+    genome: fromTraits({
+      radialSymmetry: 8,
+      segmentsPerSector: 3,
+      ribCount: 14,
+      bellRadius: 12,
+      bellHeight: 22,
+      profile0: 0.2,
+      profile1: 0.62,
+      profile2: 0.9,
+      profile3: 1.0,
+      profile4: 0.9,
+      tentaclesPerSector: 1,
+      tentacleSegments: 18,
+      tentacleSegLength: 1.3,
+      tentacleWeightExp: 2.5,
+      skinSlack: 0.9,
+      radialSlack: 0.88,
+      spineSlack: 0.93,
+      weightBase: 1.0,
+      weightExp: 1.3,
+      pulseFreq: 1.0,
+      pulseDuty: 0.25,
+      pulseAmplitude: 0,
+      phaseLagPerRib: 0.2,
+      contractionProfileExp: 1.5,
+    }),
+  },
+  {
     name: "drummer",
     note:
-      "Deliberately bad: duty 0.5 makes the stroke time-symmetric. By " +
-      "Purcell's scallop theorem it should pulse vigorously and go nowhere. " +
-      "If this one swims, the drag model is wrong, and every other result on " +
-      "the sheet is suspect.",
+      "A time-symmetric stroke, duty 0.5. Written as a control on the " +
+      "assumption that Purcell's scallop theorem would forbid it from moving. " +
+      "THAT ASSUMPTION WAS WRONG and it is worth keeping the seed to remember " +
+      "why: the theorem holds at Reynolds numbers far below one, where inertia " +
+      "is irrelevant and a reciprocal motion retraces itself exactly. A bell " +
+      "this size moving at these speeds is nowhere near that regime, and a " +
+      "scallop — the animal Purcell named — swims perfectly well by clapping. " +
+      "Here it swims about as well as anything else, and the real control is " +
+      "`inert` above.",
     genome: fromTraits({
       radialSymmetry: 8,
       segmentsPerSector: 3,

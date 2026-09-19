@@ -14,6 +14,7 @@ import type {
 } from "@ocean/core-types";
 import {
   BuoyancyForce,
+  CavityJetForce,
   DirectionalForce,
   DistanceConstraint,
   FlowFieldForce,
@@ -28,7 +29,20 @@ export interface EpisodeConfig {
   readonly iterations: number;
   readonly gravity: readonly [number, number, number];
   readonly buoyancyRatio: number;
+  /**
+   * Density of the surrounding water, used by BOTH drag and the cavity jet.
+   *
+   * Deliberately one number. They were briefly two, which is physically
+   * incoherent — there is one fluid — and the incoherence was hiding something
+   * important: when both scale together the density CANCELS out of the
+   * steady-state swimming speed, because thrust and drag both scale with it.
+   * Speed is fixed by the ratio of drag area to aperture area and by the
+   * kinematics, and by nothing a coefficient can reach. Two knobs made it look
+   * tunable; one knob makes it obvious that it is not.
+   */
   readonly waterDensity: number;
+  /** Reverse thrust from the refill stroke, as a fraction of expulsion. */
+  readonly refillEfficiency: number;
   readonly flowAmplitude: number;
   readonly gait: { readonly frequency: number; readonly duty: number; readonly warmupSeconds?: number };
   readonly guards: GuardConfig;
@@ -64,7 +78,10 @@ export const DEFAULT_EPISODE: Omit<EpisodeConfig, "gait"> = {
   iterations: 2,
   gravity: [0, -2, 0],
   buoyancyRatio: 1,
-  waterDensity: 1,
+  // Matches the body's own density (total mass over cavity volume), i.e. a
+  // neutrally buoyant animal in the water it displaces.
+  waterDensity: 0.15,
+  refillEfficiency: 0.2,
   flowAmplitude: 0.02,
   guards: DEFAULT_GUARDS,
 };
@@ -118,6 +135,17 @@ export class Creature {
         phenotype.dragNeighbours,
       ),
     );
+
+    if (phenotype.cavity) {
+      system.addForce(
+        new CavityJetForce(
+          phenotype.cavity,
+          phenotype.weights,
+          cfg.waterDensity,
+          cfg.refillEfficiency,
+        ),
+      );
+    }
 
     this.flow = new FlowFieldForce(cfg.flowAmplitude);
     system.addForce(this.flow);

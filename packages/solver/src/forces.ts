@@ -15,6 +15,16 @@ import { cos, sin } from "@ocean/mathx";
 
 export interface Force {
   /**
+   * Optional per-tick setup, called once before any particle is visited.
+   *
+   * Most forces are pointwise and need nothing. A force that depends on a
+   * whole-body property — the volume of a cavity, say — cannot compute it
+   * inside a per-particle callback without either recomputing it thousands of
+   * times or depending on visit order. This is the hook for those.
+   */
+  prepare?(p0: Float32Array, p1: Float32Array, dt: number): void;
+
+  /**
    * Accumulate into f0 for the particle whose x component is at index ix.
    *
    * `dt` is not in upstream's signature. It has to be here because velocity in

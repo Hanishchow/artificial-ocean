@@ -97,6 +97,12 @@ export class ParticleSystem {
     const p1 = this.positionsPrev;
     const forces = this.forces;
 
+    // Whole-body forces get one chance to measure the body before it is walked
+    // particle by particle.
+    for (let j = 0, jl = forces.length; j < jl; j++) {
+      forces[j]!.prepare?.(p0, p1, dt);
+    }
+
     for (let i = 0, il = this.count; i < il; i++) {
       const ix = i * 3;
       f0[ix] = f0[ix + 1] = f0[ix + 2] = 0;
@@ -210,12 +216,18 @@ export class ParticleSystem {
     let sw = 0;
 
     for (let i = 0, il = this.count; i < il; i++) {
+      // `weights` is INVERSE mass, so the mass is its reciprocal. Averaging by
+      // the weight itself would compute a centre of inverse mass, which weights
+      // the lightest particles most — the opposite of what is wanted, and it
+      // makes a whippy tentacle tip count for more than the whole bell.
       const wi = w[i]!;
+      if (wi <= 0) continue;
+      const mass = 1 / wi;
       const ix = i * 3;
-      sx += p[ix]! * wi;
-      sy += p[ix + 1]! * wi;
-      sz += p[ix + 2]! * wi;
-      sw += wi;
+      sx += p[ix]! * mass;
+      sy += p[ix + 1]! * mass;
+      sz += p[ix + 2]! * mass;
+      sw += mass;
     }
 
     const inv = sw > 0 ? 1 / sw : 0;

@@ -119,6 +119,29 @@ export interface Phenotype {
   /** Upkeep per tick before any swimming. The main brake on runaway body size. */
   readonly basalCost: number;
   readonly bounds: { readonly radius: number; readonly height: number };
+  /** Null for a body with no enclosed volume; such a body cannot jet. */
+  readonly cavity: CavitySpec | null;
+}
+
+/**
+ * The enclosed cavity under a bell.
+ *
+ * A medusa does not swim by flapping. It swims by squeezing a volume of water
+ * out of the space beneath its bell and riding the reaction — it is a pump, not
+ * a paddle. Reproducing that needs to know which particles bound the cavity, so
+ * its volume can be measured every tick and the rate of change turned into
+ * thrust.
+ *
+ * Rings run apex-first; the last is the margin, whose opening is the aperture
+ * the water leaves through.
+ */
+export interface CavitySpec {
+  /** First particle index of each ring, apex-first. */
+  readonly rings: Uint32Array;
+  /** Particles per ring. Every ring has the same count. */
+  readonly ringSize: number;
+  /** The single particle closing the top. */
+  readonly apex: number;
 }
 
 /** Why an episode was cut short. Absent means it ran to completion. */

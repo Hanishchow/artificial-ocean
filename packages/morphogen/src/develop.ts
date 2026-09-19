@@ -390,6 +390,48 @@ export function develop(genome: Genome, opts: DevelopOptions): DevelopResult {
   const bounds = body.bounds();
 
   /*
+   * NORMALISE DRAG AREA TO THE BODY'S FRONTAL PROJECTION.
+   *
+   * Each bell particle was given the area of the surface patch it represents,
+   * which is the obvious thing and is wrong by a large factor. Summed over a
+   * closed body those patches total the whole SURFACE area — every facet, front
+   * and back, inside and out. What actually resists a body moving through
+   * water is its FRONTAL projection, which for this bell is about a fifth of
+   * that.
+   *
+   * The error does not merely slow creatures down, it changes what the
+   * simulation is about. Steady swimming speed is set by thrust balancing drag,
+   * and both scale with the fluid density, so the density cancels out entirely:
+   * speed is fixed by the ratio of drag area to aperture area and by nothing
+   * else. Get that ratio wrong by five and no amount of coefficient tuning can
+   * recover it — which is exactly what a two-parameter sweep showed, right up
+   * until the parameters stopped being physical.
+   *
+   * So the patches are kept as RELATIVE weights — a wide rim still catches more
+   * than a narrow apex — and rescaled so their total is the frontal area.
+   * Tentacles are normalised separately against their own profile, since a
+   * trailing filament is not part of the bell's silhouette.
+   */
+  const areas = body.areaArray();
+  let bellArea = 0;
+  for (let i = 0; i < bellParticles; i++) bellArea += areas[i]!;
+  if (bellArea > 0) {
+    const frontal = Math.PI * bounds.radius * bounds.radius;
+    const scale = frontal / bellArea;
+    for (let i = 0; i < bellParticles; i++) areas[i]! *= scale;
+  }
+
+  let tentacleArea = 0;
+  for (let i = bellParticles; i < body.particleCount; i++) tentacleArea += areas[i]!;
+  if (tentacleArea > 0 && tentacleParticles > 0) {
+    // A tentacle's silhouette is its length times its width, and it is thin.
+    const profile =
+      tentacleParticles * tentacleSegLength * (tentacleSegLength * 0.15);
+    const scale = profile / tentacleArea;
+    for (let i = bellParticles; i < body.particleCount; i++) areas[i]! *= scale;
+  }
+
+  /*
    * Drag orientation pairs.
    *
    * A bell particle's local surface is spanned by its neighbour around the ring
@@ -439,7 +481,7 @@ export function develop(genome: Genome, opts: DevelopOptions): DevelopResult {
     particleCount: body.particleCount,
     positions,
     weights: body.weightArray(),
-    dragArea: body.areaArray(),
+    dragArea: areas,
     dragNeighbours: neighbours,
     captureSites: Uint32Array.from(captureSites),
     captureRadius: Math.max(0.8, tentacleSegLength),
@@ -451,6 +493,11 @@ export function develop(genome: Genome, opts: DevelopOptions): DevelopResult {
     // life, so length has to earn itself.
     basalCost: body.particleCount * 1e-4,
     bounds,
+    cavity: {
+      rings: Uint32Array.from(ribs.map((r) => r.index)),
+      ringSize: segments,
+      apex,
+    },
   };
 
   return { ok: true, phenotype, repairs };
