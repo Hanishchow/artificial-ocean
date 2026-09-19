@@ -6,21 +6,22 @@ Nobody designs the animals. A genome is a vector of numbers; `develop()` turns i
 into particles and constraints; a solver makes it move; how far it gets is the
 only thing that decides whether its genes survive.
 
-## Status: M0 passed, M1 partially passed
+## Status: M0, M1 and M3 done
 
 | Gate | Target | Measured | |
 |---|---|---|---|
 | Solver parity with the original | bit-for-bit over 500 ticks | exact | **PASS** |
-| Genomes that develop | — | 100 / 100 | **PASS** |
-| Bodies stable for 30s | ≥ 60% | 100% | **PASS** |
-| Bodies reaching 0.5 body-lengths/sec | ≥ 25% | 0% (best **0.414**) | **FAIL** |
+| Genomes that develop | — | 3,840 / 3,840 | **PASS** |
+| Bodies stable for a full episode | ≥ 60% | 100% | **PASS** |
+| Reaching 0.5 body-lengths/sec | ≥ 25% | best **1.58** | **PASS** |
 
-The bodies are sound, the physics is stable, and the fastest creature is within
-20% of the threshold — but nothing clears it, so the gate is failed. See
-"Where this stands", below.
+Hand-written animals topped out at 0.134 bl/s. Eighty generations of MAP-Elites
+reached **1.58**, more than three times the threshold and twelve times anything
+authored by hand. Not one of 3,840 evaluations produced a malformed or unstable
+body.
 
-Nothing downstream — renderer, evolution loop, backend, exhibit — is built yet,
-which is the point: the gate exists to find this before any of that is paid for.
+Still to build: the energy economy (M2), the renderer (M4), the exhibit (M5),
+persistence and the cron (M6).
 
 ## Running it
 
@@ -129,12 +130,34 @@ The valid control is `inert`, amplitude zero, which measures exactly 0.000
 units/sec — that is the evidence thrust comes from the gait and not from a
 numerical leak.
 
+### What the search found
+
+```
+pnpm runner evolve 80 20 run-1
+```
+
+80 generations, 3,840 evaluations, 382 seconds. Best fitness 0.28 to 1.58 bl/s;
+archive 16 to 161 cells.
+
+The champion is not a design anyone would have drawn: radius 5.5 against a
+height of 28 — far narrower than any real medusa — beating at 1.32 Hz with a
+phase lag of 0.37 running down the bell, and a contraction amplitude of 0.47.
+I had been hand-tuning toward *maximum* amplitude, which the data had already
+said was wrong.
+
+**It has no tentacles, and that is a finding, not a detail.** Only 2 of the top
+20 elites keep any, against 66 of all 161. With fitness defined as speed and no
+food in the world, a tentacle is pure drag and nothing else — so evolution
+correctly deletes it. The behaviour grid keeps tentacled creatures alive in
+their own cells, which is MAP-Elites doing exactly its job, but they never win.
+
+That is the clearest possible argument for building M2 next: tentacles need a
+reason to exist, and catching food is the reason.
+
 ### Next
 
-1. **Build M3 and let evolution search.** The evidence above says a few hundred
-   generations will beat hand-authoring comfortably, and 0.414 is already within
-   20% of the threshold.
-2. **Then decide the threshold on evidence.** 0.5 bl/s was estimated from real
-   jellyfish before any of this existed. Once there is a distribution from a real
-   run, it can be set to something the model demonstrably supports rather than
-   something guessed in advance.
+1. **M2, the energy economy.** Net energy replaces speed as the objective.
+   `workDone` is already measured and ready to become the denominator, and
+   `captureSites` are already emitted by development and unused.
+2. **M4, the renderer.** There is now a population worth looking at properly,
+   and everything downstream of it is presentation rather than research.
