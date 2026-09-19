@@ -20,8 +20,25 @@ reached **1.58**, more than three times the threshold and twelve times anything
 authored by hand. Not one of 3,840 evaluations produced a malformed or unstable
 body.
 
-Still to build: the renderer (M4), the exhibit (M5), persistence and the
-cron (M6).
+There is a viewer: `pnpm runner record <seed|archive:run>` captures one gait
+cycle from the solver, and `viewer/` plays it back in WebGL. It is recorded
+playback, not a live browser simulation — that is still M4 proper, along with
+the exhibit (M5) and persistence and the cron (M6).
+
+### The objective decides the animal
+
+Two runs of the same search, differing only in what fitness means:
+
+| | speed objective | energy objective |
+|---|---|---|
+| top-20 elites with tentacles | **2 / 20** | **20 / 20** |
+| mean tentacles across top-20 | 1.1 | **24.8** |
+| champion | radius 5.5, height 28, 0 tentacles | radius 20.1, height 39, 24 tentacles |
+
+Under speed, a tentacle is drag and nothing else, so evolution throws it away
+and builds a narrow dart. Add food and a metabolism and the same search, from
+the same seeds, builds something four times wider that keeps every tentacle it
+can afford. Neither animal was designed.
 
 ### M2: the economy, and why tentacles came back
 

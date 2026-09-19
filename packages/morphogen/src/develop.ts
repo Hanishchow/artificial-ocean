@@ -25,7 +25,14 @@ import type {
   Resolution,
 } from "@ocean/core-types";
 import { type Genome, decode } from "@ocean/genome";
-import { BodyBuilder, linkLoop, linkRings } from "@ocean/topology";
+import {
+  BodyBuilder,
+  faceRadial,
+  faceRings,
+  linkLine,
+  linkLoop,
+  linkRings,
+} from "@ocean/topology";
 import { TAU, clamp, rngFromSeed, splineAt } from "@ocean/mathx";
 
 export interface DevelopOptions {
@@ -474,6 +481,63 @@ export function develop(genome: Genome, opts: DevelopOptions): DevelopResult {
   for (let j = 0; j < segments; j++) captureSites.push(margin.index + j);
   for (let i = bellParticles; i < body.particleCount; i++) captureSites.push(i);
 
+  /*
+   * Renderable surfaces.
+   *
+   * The simulation never looks at these -- it only needs particles and the
+   * constraints between them, which is why they were left empty right through
+   * M1 to M3 while everything was measured rather than watched. They are the
+   * one thing standing between an archive of numbers and something you can
+   * look at.
+   *
+   * The bell is a band of quads between each pair of rings, capped by a
+   * triangle fan at the apex. Tentacles are lines rather than tubes: at display
+   * resolution a tentacle is a few dozen particles, and a line through them
+   * reads better than an extruded cylinder would at a fraction of the vertex
+   * count.
+   */
+  const bellFaces: number[] = [];
+  faceRadial(apex, ribs[0]!.index, segments, bellFaces);
+  for (let i = 0; i < ribs.length - 1; i++) {
+    faceRings(ribs[i]!.index, ribs[i + 1]!.index, segments, bellFaces);
+  }
+
+  // UVs: u wraps around the bell, v runs apex to margin. One per particle, so
+  // the array is indexed the same way positions are.
+  const uvs = new Float32Array(body.particleCount * 2);
+  uvs[0] = 0.5;
+  uvs[1] = 0;
+  for (let i = 0; i < ribs.length; i++) {
+    const rib = ribs[i]!;
+    for (let j = 0; j < segments; j++) {
+      uvs[(rib.index + j) * 2] = j / segments;
+      uvs[(rib.index + j) * 2 + 1] = rib.t;
+    }
+  }
+
+  const tentacleLines: number[] = [];
+  if (tentacleParticles > 0 && tentacleSegments > 0) {
+    for (let p = bellParticles; p < body.particleCount; p += tentacleSegments) {
+      const end = Math.min(tentacleSegments, body.particleCount - p);
+      linkLine(p, end, tentacleLines);
+    }
+  }
+
+  const surfaces = [
+    {
+      name: "bulb" as const,
+      faces: Uint32Array.from(bellFaces),
+      lines: Uint32Array.from([]),
+      uvs,
+    },
+    {
+      name: "tentacles" as const,
+      faces: Uint32Array.from([]),
+      lines: Uint32Array.from(tentacleLines),
+      uvs,
+    },
+  ];
+
   const phenotype: Phenotype = {
     genomeId: genome.id,
     specVersion: genome.specVersion,
@@ -487,7 +551,7 @@ export function develop(genome: Genome, opts: DevelopOptions): DevelopResult {
     captureRadius: Math.max(0.8, tentacleSegLength),
     constraints,
     actuators,
-    surfaces: [],
+    surfaces,
     // Upkeep scales with particle count. This is the main brake on bloat: an
     // extra tentacle segment costs energy every tick for the animal's whole
     // life, so length has to earn itself.

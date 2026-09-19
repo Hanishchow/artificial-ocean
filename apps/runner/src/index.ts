@@ -33,7 +33,7 @@ import {
   runGeneration,
   seedArchive,
 } from "@ocean/evolve";
-import { EVAL_OPTIONS, develop } from "@ocean/morphogen";
+import { DISPLAY_OPTIONS, EVAL_OPTIONS, develop } from "@ocean/morphogen";
 import {
   Creature,
   DEFAULT_EPISODE,
@@ -242,7 +242,7 @@ function cmdEvolve(args: string[]): void {
     const t = decode(champion.genome);
     console.log(
       `\n  champion ${champion.genome.id.slice(0, 8)}  ` +
-        `${champion.fitness.toFixed(4)} bl/s  (found in generation ${champion.generation})`,
+        `${champion.fitness.toFixed(4)} energy/s  (found in generation ${champion.generation})`,
     );
     console.log(
       `    radius ${t["bellRadius"]!.toFixed(1)}  height ${t["bellHeight"]!.toFixed(1)}  ` +
@@ -260,7 +260,7 @@ function cmdEvolve(args: string[]): void {
   write(
     join("sheets", `${runSeed}-progress.svg`),
     linePlotSvg([
-      { label: "best fitness (bl/s)", values: best, color: "#5ad6ff" },
+      { label: "best fitness (energy/s)", values: best, color: "#5ad6ff" },
       { label: "batch mean", values: mean, color: "#c77dff" },
       { label: "archive coverage", values: coverage, color: "#8fe388" },
     ]),
@@ -299,6 +299,137 @@ function cmdGallery(args: string[]): void {
   const path = join("sheets", `${runSeed}-gallery.svg`);
   write(path, contactSheetSvg(cells, 10));
   console.log(`\n  ${top.length} elites rendered to ${path}\n`);
+}
+
+// ..................................................
+// Recording, for the viewer
+//
+
+/**
+ * Capture one gait cycle of a creature, in its own frame of reference.
+ *
+ * Recording the whole episode would be the obvious thing and produces a file
+ * tens of megabytes wide. A gait is periodic, so one period is all the motion
+ * there is; everything after it is the same shapes again, plus translation.
+ *
+ * So: subtract the centre of mass from every frame, store exactly one period,
+ * and let the viewer carry the creature forward at the measured speed. The
+ * swimming loops, the travel does not, and the file is a few hundred kilobytes
+ * instead of thirty megabytes.
+ *
+ * The loop is not perfectly seamless. Drift, the ambient current and the
+ * solver's own residual mean the body does not return to precisely the pose it
+ * started in, so there is a small discontinuity at the wrap. It is visible if
+ * you look for it and invisible if you do not.
+ */
+function cmdRecord(args: string[]): void {
+  const name = args[0] ?? "reference";
+  const settleSeconds = Number(args[1] ?? 8);
+  const fps = Number(args[2] ?? 60);
+
+  const genome = name.startsWith("archive:")
+    ? championOf(name.slice("archive:".length))
+    : seedByName(name);
+
+  // Display resolution, capped: the eval body is deliberately coarse, and a
+  // full-fat display body is more mesh than a web page needs.
+  const dev = develop(genome, { ...DISPLAY_OPTIONS, maxParticles: 3200 });
+  if (!dev.ok) {
+    console.log(`  cannot develop ${name}: ${dev.reason} ${dev.detail}`);
+    return;
+  }
+
+  const ph = dev.phenotype;
+  const t = decode(genome);
+  const cfg = episodeConfig(genome, settleSeconds + 4);
+  const creature = new Creature(ph, cfg);
+  const dt = 1 / cfg.hz;
+
+  // Let the warm-up finish and the gait establish before recording.
+  for (let i = 0; i < Math.round(settleSeconds * cfg.hz); i++) {
+    creature.step(dt);
+    creature.system.clampVelocity(cfg.guards.maxSpeed, dt);
+  }
+
+  const period = 1 / Math.max(0.05, t["pulseFreq"]!);
+  const frameCount = Math.max(8, Math.round(period * fps));
+  const stepsPerFrame = Math.max(1, Math.round(cfg.hz / fps));
+
+  const com = new Float32Array(3);
+  const frames: number[][] = [];
+  const travel: number[][] = [];
+
+  for (let f = 0; f < frameCount; f++) {
+    for (let k = 0; k < stepsPerFrame; k++) {
+      creature.step(dt / stepsPerFrame);
+      creature.system.clampVelocity(cfg.guards.maxSpeed, dt / stepsPerFrame);
+    }
+
+    creature.system.centreOfMass(com);
+    const p = creature.system.positions;
+    const frame = new Array<number>(ph.particleCount * 3);
+    for (let i = 0; i < ph.particleCount; i++) {
+      // Two decimals: the bodies are tens of units across, so hundredths are
+      // far below anything a screen can show, and it halves the file.
+      frame[i * 3] = Math.round((p[i * 3]! - com[0]!) * 100) / 100;
+      frame[i * 3 + 1] = Math.round((p[i * 3 + 1]! - com[1]!) * 100) / 100;
+      frame[i * 3 + 2] = Math.round((p[i * 3 + 2]! - com[2]!) * 100) / 100;
+    }
+    frames.push(frame);
+    travel.push([com[0]!, com[1]!, com[2]!]);
+  }
+
+  const bulb = ph.surfaces.find((s) => s.name === "bulb");
+  const tent = ph.surfaces.find((s) => s.name === "tentacles");
+
+  const payload = {
+    meta: {
+      name,
+      genomeId: ph.genomeId,
+      particles: ph.particleCount,
+      fps: Math.round(fps / stepsPerFrame),
+      frames: frameCount,
+      bounds: ph.bounds,
+      traits: {
+        bellRadius: t["bellRadius"]!,
+        bellHeight: t["bellHeight"]!,
+        ribs: Math.round(t["ribCount"]!),
+        symmetry: Math.round(t["radialSymmetry"]!),
+        tentacles:
+          Math.round(t["tentaclesPerSector"]!) * Math.round(t["radialSymmetry"]!),
+        pulseFreq: t["pulseFreq"]!,
+        pulseDuty: t["pulseDuty"]!,
+      },
+      // How far the body actually moved over the recorded period, so the viewer
+      // can carry it forward at the speed it really swims.
+      drift: [
+        travel[travel.length - 1]![0]! - travel[0]![0]!,
+        travel[travel.length - 1]![1]! - travel[0]![1]!,
+        travel[travel.length - 1]![2]! - travel[0]![2]!,
+      ],
+    },
+    faces: Array.from(bulb?.faces ?? []),
+    lines: Array.from(tent?.lines ?? []),
+    frames,
+  };
+
+  const path = join("data", `${name.replace(/[^a-z0-9]/gi, "-")}-anim.json`);
+  write(path, JSON.stringify(payload));
+  console.log(
+    `\n  ${name}: ${ph.particleCount} particles, ${frameCount} frames` +
+      ` (${period.toFixed(2)}s loop), ${(bulb?.faces.length ?? 0) / 3} triangles`,
+  );
+  console.log(`  ${path}\n`);
+}
+
+/** The fittest genome in a stored archive. */
+function championOf(runSeed: string): Genome {
+  const raw = readFileSync(join("data", `${runSeed}-archive.json`), "utf8");
+  const snapshot = JSON.parse(raw) as {
+    cells: Array<{ genes: number[]; fitness: number }>;
+  };
+  const best = snapshot.cells.reduce((a, b) => (b.fitness > a.fitness ? b : a));
+  return deserialiseGenes(best.genes.join(","));
 }
 
 // ..................................................
@@ -428,6 +559,9 @@ switch (command) {
   case "gallery":
     cmdGallery(rest);
     break;
+  case "record":
+    cmdRecord(rest);
+    break;
   default:
     console.log(`
   usage:
@@ -435,6 +569,7 @@ switch (command) {
     pnpm runner sheet [count] [seconds]    the M1 gate, with a contact sheet
     pnpm runner evolve [gens] [secs] [run] MAP-Elites search
     pnpm runner gallery [run] [seconds]    an archive's elites as a sheet
+    pnpm runner record [seed|archive:run]  one gait cycle, for the viewer
 
   seeds: ${SEEDS.map((s) => s.name).join(", ")}
 `);

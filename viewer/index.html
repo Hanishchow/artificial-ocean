@@ -1,0 +1,528 @@
+<title>Medusa Specimen Tank</title>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  /* A deliberately single-theme page: this is a deep-water specimen tank, and
+     a light version of it would be a different instrument. Every colour is
+     still painted explicitly so the page never borrows the host's ground. */
+  :root {
+    --abyss: #060a10;
+    --deep: #0c141d;
+    --panel: rgba(9, 16, 23, 0.82);
+    --rule: #1c2836;
+    --ink: #dae4ee;
+    --ink-dim: #7a8b9c;
+    --ink-faint: #4d5e6e;
+    --bio: #47d4c4;
+    --bio-deep: #1d7f78;
+    --amber: #d99a4e;
+
+    --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--abyss);
+    color: var(--ink);
+    font-family: var(--sans);
+    overflow: hidden;
+  }
+
+  #tank {
+    position: fixed;
+    inset: 0;
+    display: block;
+    touch-action: none;
+    cursor: grab;
+  }
+  #tank:active { cursor: grabbing; }
+
+  .hud {
+    position: relative;
+    height: 100%;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    padding: 16px;
+    padding-block: calc(16px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-bottom, 0px));
+    gap: 16px;
+    pointer-events: none;
+  }
+  .hud > * { pointer-events: auto; }
+
+  /* ---------------------------------------------------------- masthead */
+
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px 18px;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .sub {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-dim);
+    letter-spacing: 0.02em;
+  }
+
+  /* ---------------------------------------------------------- panels */
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    backdrop-filter: blur(6px);
+  }
+
+  .shelf {
+    align-self: end;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+  }
+
+  /* Specimen chooser. Two real specimens, labelled by what they are. */
+  .specimens {
+    display: flex;
+    flex-direction: column;
+    min-width: 232px;
+  }
+
+  .specimen {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    gap: 4px 10px;
+    padding: 10px 12px;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink-dim);
+    font-family: var(--sans);
+    font-size: 12.5px;
+    text-align: left;
+    cursor: pointer;
+    transition: color 120ms ease, background 120ms ease;
+  }
+  .specimen:last-child { border-bottom: 0; }
+  .specimen:hover { color: var(--ink); background: rgba(71, 212, 196, 0.05); }
+  .specimen[aria-pressed="true"] { color: var(--ink); background: rgba(71, 212, 196, 0.1); }
+  .specimen:focus-visible { outline: 1px solid var(--bio); outline-offset: -1px; }
+
+  .specimen b { font-weight: 500; }
+
+  .specimen .tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-faint);
+    letter-spacing: 0.03em;
+  }
+  .specimen[aria-pressed="true"] .tag { color: var(--bio); }
+
+  .specimen .note {
+    grid-column: 1 / -1;
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--ink-faint);
+    max-width: 30ch;
+  }
+
+  /* Trait readout: the genome's actual decoded values, in real units. */
+  .readout {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 3px 16px;
+    padding: 12px 14px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .readout dt { color: var(--ink-faint); letter-spacing: 0.02em; }
+  .readout dd { margin: 0; color: var(--ink); text-align: right; }
+  .readout dd u { color: var(--ink-faint); text-decoration: none; }
+  .readout .hi { color: var(--bio); }
+  .readout .flag { color: var(--amber); }
+
+  /* ---------------------------------------------------------- controls */
+
+  .controls {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .controls button {
+    padding: 9px 14px;
+    background: none;
+    border: 0;
+    border-right: 1px solid var(--rule);
+    color: var(--ink-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: color 120ms ease, background 120ms ease;
+  }
+  .controls button:last-child { border-right: 0; }
+  .controls button:hover { color: var(--ink); background: rgba(71, 212, 196, 0.06); }
+  .controls button[aria-pressed="true"] { color: var(--bio); }
+  .controls button:focus-visible { outline: 1px solid var(--bio); outline-offset: -1px; }
+
+  .hint {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--ink-faint);
+    letter-spacing: 0.03em;
+    align-self: center;
+  }
+
+  @media (max-width: 720px) {
+    .readout { display: none; }
+    .specimen .note { display: none; }
+    .specimens { min-width: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .specimen, .controls button { transition: none; }
+  }
+</style>
+
+<canvas id="tank"></canvas>
+
+<div class="hud">
+  <header>
+    <h1>Medusa specimen tank</h1>
+    <p class="sub" id="caption">one gait cycle, recorded from the solver and looped</p>
+  </header>
+
+  <div></div>
+
+  <div class="shelf">
+    <div class="panel specimens" role="group" aria-label="Specimen">
+      <button class="specimen" type="button" data-key="reference" aria-pressed="true">
+        <b>Reference medusa</b>
+        <span class="tag">HAND-WRITTEN</span>
+        <span class="note">Proportions taken from the original 2015 simulation, which was pinned in place and never swam.</span>
+      </button>
+      <button class="specimen" type="button" data-key="speed" aria-pressed="false">
+        <b>Sprinter 20445af7</b>
+        <span class="tag">BRED FOR SPEED</span>
+        <span class="note">Found by search. Narrow, fast, and it has thrown its tentacles away — under a speed objective they are drag and nothing else.</span>
+      </button>
+      <button class="specimen" type="button" data-key="forager" aria-pressed="false">
+        <b>Forager 6bb5b999</b>
+        <span class="tag">BRED FOR FOOD</span>
+        <span class="note">The same search with energy as the objective, not speed. Twice as wide, and the tentacles are back — now they catch something.</span>
+      </button>
+    </div>
+
+    <dl class="panel readout" id="readout"></dl>
+
+    <div class="panel controls">
+      <button type="button" id="play" aria-pressed="true">PAUSE</button>
+      <button type="button" id="mode" aria-pressed="false">PARTICLES</button>
+      <button type="button" id="motes" aria-pressed="true">FOOD</button>
+    </div>
+
+    <p class="hint">drag to turn &middot; scroll to zoom</p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="specimens.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var DATA = window.SPECIMENS || {};
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var canvas = document.getElementById("tank");
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.setClearColor(0x060a10, 1);
+
+  var scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x060a10, 0.0075);
+
+  var camera = new THREE.PerspectiveCamera(42, 1, 0.5, 900);
+
+  // Lighting reads as water: one cool key from above, one dim warm fill from
+  // below so the underside of the bell is not a silhouette.
+  scene.add(new THREE.AmbientLight(0x2a4456, 1.0));
+  var key = new THREE.DirectionalLight(0x9fe8de, 1.15);
+  key.position.set(0.4, 1, 0.55);
+  scene.add(key);
+  var fill = new THREE.DirectionalLight(0x2f6f86, 0.5);
+  fill.position.set(-0.6, -1, -0.3);
+  scene.add(fill);
+
+  // ---------------------------------------------------------------- orbit
+  // Hand-rolled rather than pulling in OrbitControls: this needs three
+  // gestures, and r128's controls ship as a separate addon file.
+
+  var azimuth = 0.6, elevation = 0.32, distance = 90;
+  var dragging = false, lastX = 0, lastY = 0;
+
+  function onDown(e) {
+    dragging = true;
+    lastX = (e.touches ? e.touches[0] : e).clientX;
+    lastY = (e.touches ? e.touches[0] : e).clientY;
+  }
+  function onMove(e) {
+    if (!dragging) return;
+    var p = e.touches ? e.touches[0] : e;
+    azimuth -= (p.clientX - lastX) * 0.006;
+    elevation += (p.clientY - lastY) * 0.005;
+    // Stop short of the poles, where the view flips and the up-vector fights.
+    elevation = Math.max(-1.35, Math.min(1.35, elevation));
+    lastX = p.clientX;
+    lastY = p.clientY;
+    if (e.touches) e.preventDefault();
+  }
+  function onUp() { dragging = false; }
+
+  canvas.addEventListener("mousedown", onDown);
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+  canvas.addEventListener("touchstart", onDown, { passive: true });
+  window.addEventListener("touchmove", onMove, { passive: false });
+  window.addEventListener("touchend", onUp);
+  canvas.addEventListener("wheel", function (e) {
+    distance = Math.max(18, Math.min(300, distance * (1 + e.deltaY * 0.0012)));
+    e.preventDefault();
+  }, { passive: false });
+
+  // ---------------------------------------------------------------- motes
+  // Marine snow, standing in for the food field the creatures forage in. It
+  // scrolls past at the speed the specimen actually swims, which is why the
+  // creature itself can stay centred: what you see is the relative motion,
+  // and relative motion is the only thing that feeds anything here.
+
+  var MOTE_COUNT = 900, MOTE_SPAN = 190;
+  var moteGeom = new THREE.BufferGeometry();
+  var motePos = new Float32Array(MOTE_COUNT * 3);
+  var moteSeed = 1;
+  function rnd() {
+    // Deterministic, so the field looks the same on every load.
+    moteSeed = (moteSeed * 1664525 + 1013904223) % 4294967296;
+    return moteSeed / 4294967296;
+  }
+  for (var m = 0; m < MOTE_COUNT; m++) {
+    motePos[m * 3] = (rnd() - 0.5) * MOTE_SPAN;
+    motePos[m * 3 + 1] = (rnd() - 0.5) * MOTE_SPAN;
+    motePos[m * 3 + 2] = (rnd() - 0.5) * MOTE_SPAN;
+  }
+  moteGeom.setAttribute("position", new THREE.BufferAttribute(motePos, 3));
+  var motes = new THREE.Points(moteGeom, new THREE.PointsMaterial({
+    color: 0x5f8296, size: 0.5, transparent: true, opacity: 0.55, sizeAttenuation: true
+  }));
+  scene.add(motes);
+
+  // ---------------------------------------------------------------- specimen
+
+  var group = new THREE.Group();
+  scene.add(group);
+
+  var current = null;      // the loaded specimen record
+  var geometry = null;     // shared position buffer: mesh, lines and points
+  var frame = 0;
+  var clock = 0;
+  var playing = !reduced;
+  var showPoints = false;
+
+  var gelMaterial = new THREE.MeshPhongMaterial({
+    color: 0x6fe4d6, emissive: 0x0b3a38, specular: 0xbffff6, shininess: 55,
+    transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false
+  });
+  var rimMaterial = new THREE.MeshBasicMaterial({
+    color: 0x47d4c4, wireframe: true, transparent: true, opacity: 0.12
+  });
+  var lineMaterial = new THREE.LineBasicMaterial({
+    color: 0x8fdcd2, transparent: true, opacity: 0.4
+  });
+  var pointMaterial = new THREE.PointsMaterial({
+    color: 0x8ff0e4, size: 0.42, transparent: true, opacity: 0.85, sizeAttenuation: true
+  });
+
+  function load(key) {
+    var spec = DATA[key];
+    if (!spec) return;
+
+    while (group.children.length) group.remove(group.children[0]);
+    if (geometry) geometry.dispose();
+
+    current = spec;
+    frame = 0;
+
+    geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(
+      Float32Array.from(spec.frames[0]), 3));
+    if (spec.faces.length) geometry.setIndex(spec.faces);
+    geometry.computeVertexNormals();
+
+    if (spec.faces.length) {
+      group.add(new THREE.Mesh(geometry, gelMaterial));
+      group.add(new THREE.Mesh(geometry, rimMaterial));
+    }
+    if (spec.lines.length) {
+      var lineGeom = new THREE.BufferGeometry();
+      lineGeom.setAttribute("position", geometry.getAttribute("position"));
+      lineGeom.setIndex(spec.lines);
+      group.add(new THREE.LineSegments(lineGeom, lineMaterial));
+    }
+
+    var pts = new THREE.Points(geometry, pointMaterial);
+    pts.visible = showPoints;
+    pts.name = "points";
+    group.add(pts);
+
+    // Frame the camera to the animal's own size rather than a fixed distance,
+    // so a 5-unit body and a 40-unit one both fill the view.
+    distance = Math.max(34, spec.meta.bounds.height * 2.2);
+    renderReadout(spec);
+  }
+
+  // ---------------------------------------------------------------- readout
+
+  function speedOf(spec) {
+    var d = spec.meta.drift;
+    var travelled = Math.sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    return travelled / (spec.meta.frames / spec.meta.fps);
+  }
+
+  function row(term, value, unit, cls) {
+    return '<dt>' + term + '</dt><dd class="' + (cls || "") + '">' + value +
+      (unit ? ' <u>' + unit + '</u>' : '') + '</dd>';
+  }
+
+  function renderReadout(spec) {
+    var t = spec.meta.traits;
+    var speed = speedOf(spec);
+    var html = "";
+    html += row("bell radius", t.bellRadius.toFixed(1), "u");
+    html += row("bell height", t.bellHeight.toFixed(1), "u");
+    html += row("symmetry", t.symmetry + "-fold", "");
+    html += row("ribs", t.ribs, "");
+    html += row("tentacles", t.tentacles, "", t.tentacles === 0 ? "flag" : "");
+    html += row("pulse", t.pulseFreq.toFixed(2), "Hz");
+    html += row("duty cycle", t.pulseDuty.toFixed(2), "");
+    html += row("swim speed", speed.toFixed(2), "u/s", "hi");
+    html += row("particles", spec.meta.particles, "");
+    html += row("triangles", spec.faces.length / 3, "");
+    html += row("loop", (spec.meta.frames / spec.meta.fps).toFixed(2), "s");
+    html += row("genome", spec.meta.genomeId.slice(0, 8), "");
+    document.getElementById("readout").innerHTML = html;
+
+    document.getElementById("caption").textContent =
+      "one gait cycle at " + spec.meta.fps + " fps, recorded from the solver and looped";
+  }
+
+  // ---------------------------------------------------------------- controls
+
+  var buttons = document.querySelectorAll(".specimen");
+  Array.prototype.forEach.call(buttons, function (b) {
+    b.addEventListener("click", function () {
+      Array.prototype.forEach.call(buttons, function (o) {
+        o.setAttribute("aria-pressed", String(o === b));
+      });
+      load(b.getAttribute("data-key"));
+    });
+  });
+
+  var playBtn = document.getElementById("play");
+  playBtn.textContent = playing ? "PAUSE" : "PLAY";
+  playBtn.setAttribute("aria-pressed", String(playing));
+  playBtn.addEventListener("click", function () {
+    playing = !playing;
+    playBtn.textContent = playing ? "PAUSE" : "PLAY";
+    playBtn.setAttribute("aria-pressed", String(playing));
+  });
+
+  var modeBtn = document.getElementById("mode");
+  modeBtn.addEventListener("click", function () {
+    showPoints = !showPoints;
+    modeBtn.setAttribute("aria-pressed", String(showPoints));
+    var p = group.getObjectByName("points");
+    if (p) p.visible = showPoints;
+  });
+
+  var motesBtn = document.getElementById("motes");
+  motesBtn.addEventListener("click", function () {
+    motes.visible = !motes.visible;
+    motesBtn.setAttribute("aria-pressed", String(motes.visible));
+  });
+
+  // ---------------------------------------------------------------- loop
+
+  function resize() {
+    var w = window.innerWidth, h = window.innerHeight;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  var last = 0;
+  function tick(now) {
+    requestAnimationFrame(tick);
+    var dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
+    last = now;
+
+    if (current && playing) {
+      clock += dt;
+      var step = 1 / current.meta.fps;
+      while (clock >= step) {
+        clock -= step;
+        frame = (frame + 1) % current.meta.frames;
+        var attr = geometry.getAttribute("position");
+        attr.array.set(current.frames[frame]);
+        attr.needsUpdate = true;
+        geometry.computeVertexNormals();
+      }
+
+      // Scroll the water past the animal at the speed it really swims, in the
+      // direction it really goes.
+      var d = current.meta.drift;
+      var len = Math.sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]) || 1;
+      var v = speedOf(current);
+      var half = MOTE_SPAN / 2;
+      var arr = motePos;
+      for (var i = 0; i < MOTE_COUNT; i++) {
+        arr[i * 3] -= (d[0] / len) * v * dt;
+        arr[i * 3 + 1] -= (d[1] / len) * v * dt;
+        arr[i * 3 + 2] -= (d[2] / len) * v * dt;
+        for (var a = 0; a < 3; a++) {
+          if (arr[i * 3 + a] < -half) arr[i * 3 + a] += MOTE_SPAN;
+          else if (arr[i * 3 + a] > half) arr[i * 3 + a] -= MOTE_SPAN;
+        }
+      }
+      moteGeom.getAttribute("position").needsUpdate = true;
+    }
+
+    camera.position.set(
+      Math.cos(azimuth) * Math.cos(elevation) * distance,
+      Math.sin(elevation) * distance,
+      Math.sin(azimuth) * Math.cos(elevation) * distance
+    );
+    camera.lookAt(0, 0, 0);
+    renderer.render(scene, camera);
+  }
+
+  load("reference");
+  requestAnimationFrame(tick);
+})();
+</script>
