@@ -17,6 +17,7 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -71,10 +72,50 @@ writeFileSync(
   `window.ARCHIVE=${JSON.stringify(payload)};`,
   "utf8",
 );
-copyFileSync(join(root, "apps", "exhibit", "src", "index.html"), join(dist, "index.html"));
+// Everything the page loads with a <script src>, plus the page. Listed rather
+// than globbed: a stray file in src/ should not silently become part of a
+// deploy, and a file the page needs that is missing here should fail the build
+// loudly instead of producing a dead page in production.
+const STATIC = ["index.html", "palettes.js", "bloom.js", "render.js"];
+for (const f of STATIC) {
+  const from = join(root, "apps", "exhibit", "src", f);
+  if (!existsSync(from)) {
+    console.error(`missing apps/exhibit/src/${f} — the page loads it and will break without it`);
+    process.exit(1);
+  }
+  copyFileSync(from, join(dist, f));
+}
+
+// Stamp every <script src> with a hash of that file's contents.
+//
+// None of these filenames change when their contents do, and neither a plain
+// static host nor GitHub Pages sends Cache-Control, so a browser is free to
+// apply heuristic freshness and skip revalidation entirely. That is not
+// theoretical: a preview here served a four-day-old archive.js -- 122
+// creatures on a behaviour grid whose fourth axis had since been replaced --
+// against a freshly built page, and the page had no way to know.
+//
+// A returning visitor is the case that matters. The archive is republished
+// hourly by the evolve cron, so without this an old engine.js can be handed
+// genomes it does not understand.
+{
+  const stamp = (f) =>
+    createHash("sha256").update(readFileSync(join(dist, f))).digest("hex").slice(0, 8);
+  const page = join(dist, "index.html");
+  let html = readFileSync(page, "utf8");
+  for (const f of ["engine.js", "archive.js", "palettes.js", "bloom.js", "render.js"]) {
+    const before = html;
+    html = html.replace(`src="${f}"`, `src="${f}?v=${stamp(f)}"`);
+    if (html === before) {
+      console.error(`index.html has no <script src="${f}"> to stamp`);
+      process.exit(1);
+    }
+  }
+  writeFileSync(page, html, "utf8");
+}
 
 const size = (p) => (readFileSync(p).length / 1024).toFixed(1) + " KB";
 console.log(`  exhibit/dist`);
-console.log(`    index.html   ${size(join(dist, "index.html"))}`);
+for (const f of STATIC) console.log(`    ${f.padEnd(12)} ${size(join(dist, f))}`);
 console.log(`    engine.js    ${size(join(dist, "engine.js"))}`);
 console.log(`    archive.js   ${size(join(dist, "archive.js"))}  (${cells.length} creatures)`);

@@ -18,10 +18,10 @@ energy it nets decides whether its genes survive.
 | M4 · Renderer | **done** — the engine bundles to 32 KB and runs in the browser |
 | M5 · The exhibit | **done** — live tank, archive browser, per-creature readout |
 | M6 · Persistence and schedule | **done** — resumable runner, hourly cron, Pages deploy, SQL schema |
-| M7 · Polish | partial — post-processing and a mobile budget are still open |
+| M7 · Polish | **done** — bloom, six colour schemes, a real mobile layout |
 | M8 · Steering | not started — creatures swim straight and cannot turn |
 
-18 tests. No creature in 3,840 consecutive evaluations was malformed or
+24 tests. No creature in 3,840 consecutive evaluations was malformed or
 unstable.
 
 The published page is not a recording. It carries the 32 KB engine and the
@@ -108,6 +108,21 @@ the cavity under the bell and riding the reaction, not from the surface pushing
 on water. Worth another 22×, and it is the difference between 0.019 and 1.58
 body-lengths per second.
 
+**A palette for additive blending is arithmetic, not taste.** The creature is
+drawn as translucent gel with an additive wireframe, additive points and
+additive strands over it, and additive layers *sum* — which breaks most of the
+intuitions a colour scheme is normally picked under. Four failures came out of
+having the first set reviewed by something that did the arithmetic rather than
+looked at swatches: a two-stop bell sweeping mint to gold interpolates through
+a 35%-saturation olive across its whole midband, which is the largest area on
+screen; four swatches at ceiling green clipped on the first overlapping layer,
+and a clipped channel means the R:G:B ratio — the hue itself — is gone; a gel
+five times darker than the apex contributed nothing at 0.34 opacity and left a
+hollow ring instead of a body; and motes two degrees off the bell's hue read as
+shed fragments of the animal rather than as matter in the water. None of that
+is visible in a swatch grid and all of it is computable, so
+`tests/palettes.test.ts` pins all four.
+
 **Drag has to be capped or it explodes.** Explicit integration evaluates drag at
 the start of the step, so a quadratic force stiff enough to remove more than all
 of a particle's velocity throws it backwards harder than it arrived. Stable at
@@ -187,8 +202,6 @@ moderate, which is not something you would reason your way to.
   five times slower than before food existed, because 3,000 food particles are
   advected and re-indexed every tick. That number decides how much the hourly
   cron can actually do.
-- **Post-processing.** The original's bloom and lens-dirt chain is a rewrite
-  rather than a port, and is off the critical path.
 - **Cross-engine determinism** is claimed for the runner only, not for browser
   playback. `mathx` ships its own sin/cos and PRNG because `Math.sin` is
   implementation-defined; `AngleConstraint` still calls `Math.acos` and is

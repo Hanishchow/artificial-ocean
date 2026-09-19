@@ -1,3 +1,5 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Artificial Ocean</title>
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -108,7 +110,7 @@
   .stage-copy {
     position: absolute;
     left: var(--gutter);
-    bottom: 22px;
+    bottom: 118px;
     right: var(--gutter);
     pointer-events: none;
   }
@@ -164,6 +166,72 @@
   }
   .zoomers button:hover { color: var(--bio); border-color: var(--bio-dim); }
   .zoomers button:focus-visible { outline: 1px solid var(--bio); outline-offset: 1px; }
+
+  .palettes {
+    position: absolute;
+    left: var(--gutter);
+    bottom: 22px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    max-width: min(420px, calc(100% - 2 * var(--gutter)));
+  }
+
+  /* A swatch is the bell's own gradient, not three tiles of it. The scheme's
+     whole argument is the route the sweep takes from apex to margin -- that is
+     what the middle stop exists to control -- so the swatch draws that route.
+     The pip in the corner is the additive glow, which is not on the bell at
+     all but is what bloom picks up. */
+  .swatch {
+    width: 54px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--rule);
+    cursor: pointer;
+    position: relative;
+    transition: transform 110ms ease, border-color 110ms ease;
+  }
+  .swatch:hover { transform: translateY(-2px); border-color: var(--ink-dim); }
+  .swatch[aria-pressed="true"] { border-color: var(--ink); transform: translateY(-2px); }
+  .swatch:focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
+  .swatch em {
+    position: absolute;
+    right: 3px;
+    bottom: 3px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+  }
+
+  /* Fixed height on the note so switching schemes never shifts the layout
+     under the pointer that is switching them. */
+  .palette-name {
+    position: absolute;
+    left: var(--gutter);
+    bottom: 54px;
+    margin: 0;
+    max-width: min(430px, calc(100% - 2 * var(--gutter)));
+    pointer-events: none;
+  }
+  .palette-name b {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+  .palette-name i {
+    display: block;
+    margin-top: 5px;
+    font-style: normal;
+    font-size: 11px;
+    line-height: 1.45;
+    height: 32px;
+    overflow: hidden;
+    color: var(--ink-dim);
+  }
 
   .hint-drag {
     position: absolute;
@@ -356,6 +424,21 @@
     .stage-meta { display: none; }
   }
 
+  /* Six swatches at their desktop width need 354px and a phone has about 335
+     to give, so the row wrapped onto a second line and the second line landed
+     on top of the caption it belongs to. Shrink the swatch rather than let it
+     wrap: the gradient is still perfectly legible at 42px, and a caption that
+     sits under its own controls is worth more than eight pixels of swatch. */
+  @media (max-width: 680px) {
+    .palettes { gap: 5px; bottom: 18px; }
+    .swatch { width: 42px; height: 22px; }
+    .swatch em { width: 6px; height: 6px; right: 2px; bottom: 2px; }
+    /* Keep the caption clear of the zoom buttons parked at the right edge. */
+    .palette-name { bottom: 46px; max-width: calc(100% - 2 * var(--gutter) - 46px); }
+    .palette-name i { height: 30px; }
+    .stage-copy { bottom: 106px; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .cell { transition: none; }
   }
@@ -365,6 +448,8 @@
   <canvas id="tank"></canvas>
   <p class="hint-drag">drag to turn</p>
   <div class="stage-meta" id="stagemeta"></div>
+  <div class="palette-name" id="palettename"><b></b><i></i></div>
+  <div class="palettes" id="palettes" role="group" aria-label="Colour scheme"></div>
   <div class="zoomers">
     <button type="button" id="zoomin" aria-label="Zoom in">+</button>
     <button type="button" id="zoomout" aria-label="Zoom out">&minus;</button>
@@ -530,6 +615,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="engine.js"></script>
 <script src="archive.js"></script>
+<script src="palettes.js"></script>
+<script src="bloom.js"></script>
+<script src="render.js"></script>
 <script>
 (function () {
   "use strict";
@@ -538,21 +626,51 @@
   var Ocean = window.Ocean;
   var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  var PALETTES = window.PALETTES || [];
+  var palette = PALETTES[0];
+
   var canvas = document.getElementById("tank");
   var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
-  renderer.setClearColor(0x0a121b, 1);
 
   var scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x0a121b, 0.009);
   var camera = new THREE.PerspectiveCamera(40, 1, 0.5, 700);
 
-  scene.add(new THREE.AmbientLight(0x27414f, 1.0));
-  var key = new THREE.DirectionalLight(0x9fe8de, 1.2);
+  var ambient = new THREE.AmbientLight(0x000000, 1.0);
+  scene.add(ambient);
+  var key = new THREE.DirectionalLight(0xffffff, 1.15);
   key.position.set(0.4, 1, 0.5);
   scene.add(key);
-  var fill = new THREE.DirectionalLight(0x2d6c84, 0.55);
+  var fill = new THREE.DirectionalLight(0xffffff, 0.5);
   fill.position.set(-0.6, -1, -0.35);
   scene.add(fill);
+
+  var bloom = new Bloom(renderer, { strength: 1.55, threshold: 0.16, knee: 0.32, vignette: 0.62 });
+
+  /** Apply a palette to everything that is not the creature itself. */
+  function applyPalette(p) {
+    palette = p;
+    var water = new THREE.Color(p.water);
+    renderer.setClearColor(water, 1);
+    scene.fog = new THREE.FogExp2(water.getHex(), 0.0085);
+
+    // Ambient is tinted toward the water so the unlit side of a body sits in
+    // the scene rather than floating on top of it.
+    ambient.color.set(p.water).lerp(new THREE.Color(p.gel), 0.45);
+    key.color.set(p.keyLight);
+    fill.color.set(p.fillLight);
+
+    moteMaterial.color.set(p.motes);
+    var nameBox = document.getElementById("palettename");
+    nameBox.querySelector("b").textContent = p.name + " · " + p.organism;
+    nameBox.querySelector("i").textContent = p.note || "";
+
+    var swatches = document.querySelectorAll(".swatch");
+    for (var i = 0; i < swatches.length; i++) {
+      swatches[i].setAttribute("aria-pressed", String(swatches[i].getAttribute("data-name") === p.name));
+    }
+
+    if (selectedCell) show(selectedCell);
+  }
 
   // ------------------------------------------------------------- motes
   // Marine snow, standing in for the food the creatures are foraging in.
@@ -569,25 +687,15 @@
   }
   var moteGeom = new THREE.BufferGeometry();
   moteGeom.setAttribute("position", new THREE.BufferAttribute(motePos, 3));
-  scene.add(new THREE.Points(moteGeom, new THREE.PointsMaterial({
-    color: 0x5f8296, size: 0.42, transparent: true, opacity: 0.5, sizeAttenuation: true
-  })));
+  var moteMaterial = new THREE.PointsMaterial({
+    color: 0x5f8296, size: 0.45, transparent: true, opacity: 0.55,
+    sizeAttenuation: true, blending: THREE.AdditiveBlending, depthWrite: false
+  });
+  scene.add(new THREE.Points(moteGeom, moteMaterial));
 
   // ------------------------------------------------------------- specimen
 
-  var group = new THREE.Group();
-  scene.add(group);
-
-  var gel = new THREE.MeshPhongMaterial({
-    color: 0x6fe4d6, emissive: 0x0b3835, specular: 0xbffff6, shininess: 55,
-    transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false
-  });
-  var rim = new THREE.MeshBasicMaterial({
-    color: 0x47d4c4, wireframe: true, transparent: true, opacity: 0.11
-  });
-  var strand = new THREE.LineBasicMaterial({
-    color: 0x92ded4, transparent: true, opacity: 0.42
-  });
+  var group = null;
 
   /*
    * Particle budget, by screen.
@@ -608,7 +716,7 @@
   // engine falls back to a coarser mesh rather than a smaller animal.
   var BUDGET = narrow ? 1600 : 2600;
 
-  var live = null, geom = null, selectedKey = null;
+  var live = null, geom = null, selectedKey = null, selectedCell = null;
   var distance = 90, azimuth = 0.7, elevation = 0.3;
   var comScratch = new Float32Array(3);
 
@@ -627,37 +735,30 @@
       return;
     }
 
-    while (group.children.length) group.remove(group.children[0]);
+    if (group) scene.remove(group);
     if (geom) geom.dispose();
 
     live = made;
+    selectedCell = cell;
     selectedKey = cell.key;
 
-    var ph = live.phenotype;
-    var bulb = null, tent = null;
-    for (var s = 0; s < ph.surfaces.length; s++) {
-      if (ph.surfaces[s].name === "bulb") bulb = ph.surfaces[s];
-      if (ph.surfaces[s].name === "tentacles") tent = ph.surfaces[s];
-    }
+    var traits = Ocean.decode(live.genome);
+    var built = CreatureRender.build(live, traits, palette);
+    group = built.group;
+    geom = built.geometry;
+    scene.add(group);
 
-    geom = new THREE.BufferGeometry();
-    // Zero-copy: the solver writes into the very buffer the GPU reads.
-    geom.setAttribute("position", new THREE.BufferAttribute(live.positions, 3));
-    if (bulb && bulb.faces.length) {
-      geom.setIndex(new THREE.BufferAttribute(bulb.faces, 1));
-      geom.computeVertexNormals();
-      group.add(new THREE.Mesh(geom, gel));
-      group.add(new THREE.Mesh(geom, rim));
-    }
-    if (tent && tent.lines.length) {
-      var lg = new THREE.BufferGeometry();
-      lg.setAttribute("position", geom.getAttribute("position"));
-      lg.setIndex(new THREE.BufferAttribute(tent.lines, 1));
-      group.add(new THREE.LineSegments(lg, strand));
-    }
-
-    distance = Math.max(38, ph.bounds.height * 2.4);
-    paintReadout(cell);
+    // Frame the creature by the sphere that actually contains it, not by its
+    // height alone. The archive holds bodies from wide flat discs to narrow
+    // columns four times taller than they are broad, and a height-only rule
+    // pushes a tall one so far back it becomes a smudge while a wide one
+    // overflows the frame. Fit the bounding radius to the vertical field of
+    // view and leave a margin.
+    var bnds = live.phenotype.bounds;
+    var reach = Math.sqrt(bnds.radius * bnds.radius + (bnds.height * 0.5) * (bnds.height * 0.5));
+    var halfFov = (camera.fov * Math.PI) / 360;
+    distance = Math.max(30, (reach / Math.tan(halfFov)) * 1.35);
+    paintReadout(cell, traits);
     markSelected();
   }
 
@@ -668,9 +769,9 @@
       (u ? " <u>" + u + "</u>" : "") + "</dd>";
   }
 
-  function paintReadout(cell) {
+  function paintReadout(cell, tr) {
     if (!live) return;
-    var tr = Ocean.decode(live.genome);
+    tr = tr || Ocean.decode(live.genome);
     var b = cell.behaviour || [];
     var tent = Math.round(tr.tentaclesPerSector) * Math.round(tr.radialSymmetry);
     var html = "";
@@ -785,6 +886,31 @@
 
   // ------------------------------------------------------------- controls
 
+  // Palette swatches, built from the palettes themselves.
+  var paletteRow = document.getElementById("palettes");
+  for (var pi = 0; pi < PALETTES.length; pi++) {
+    (function (pal) {
+      var b = document.createElement("button");
+      b.className = "swatch";
+      b.type = "button";
+      b.setAttribute("data-name", pal.name);
+      b.setAttribute("aria-label", pal.name + ", after " + pal.organism);
+      b.setAttribute("aria-pressed", "false");
+      b.title = pal.name + " · " + pal.organism + (pal.note ? "\n" + pal.note : "");
+      b.style.background = "linear-gradient(100deg," + pal.bellTop + " 0%," +
+        (pal.bellMid || pal.bellTop) + " 50%," + pal.bellMargin + " 100%)";
+      b.innerHTML = '<em style="background:' + pal.glow + '"></em>';
+      // The swatch row sits near the bottom edge of the stage, so focusing it
+      // scrolls the page a little to bring it fully into view -- which pushes
+      // the live readout off the top of the screen at the exact moment you are
+      // looking at the creature. Take the click without taking focus;
+      // keyboard focus still works, and :focus-visible only draws for that.
+      b.addEventListener("mousedown", function (e) { e.preventDefault(); });
+      b.addEventListener("click", function () { applyPalette(pal); });
+      paletteRow.appendChild(b);
+    })(PALETTES[pi]);
+  }
+
   var ranked = ARCHIVE.cells.slice().sort(function (p, q) { return q.fitness - p.fitness; });
   var pick = 0;
   document.getElementById("shuffle").addEventListener("click", function () {
@@ -838,10 +964,12 @@
 
   function resize() {
     var r = canvas.getBoundingClientRect();
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    renderer.setPixelRatio(dpr);
     renderer.setSize(r.width, r.height, false);
     camera.aspect = r.width / Math.max(1, r.height);
     camera.updateProjectionMatrix();
+    bloom.setSize(Math.floor(r.width * dpr), Math.floor(r.height * dpr));
   }
   window.addEventListener("resize", resize);
   resize();
@@ -877,10 +1005,11 @@
       Math.sin(azimuth) * Math.cos(elevation) * distance
     );
     camera.lookAt(0, 0, 0);
-    renderer.render(scene, camera);
+    bloom.render(scene, camera);
   }
 
   if (ranked.length) show(ranked[0]);
+  applyPalette(PALETTES[0]);
   requestAnimationFrame(tick);
 })();
 </script>
