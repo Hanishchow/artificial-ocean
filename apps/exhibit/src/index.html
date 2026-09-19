@@ -91,6 +91,7 @@
     background: var(--deep);
     border-bottom: 1px solid var(--rule);
     overflow: hidden;
+    touch-action: none;
   }
 
   /* width/height are NOT redundant with inset:0. A canvas is a REPLACED
@@ -935,7 +936,7 @@
   canvas.addEventListener("mousedown", down);
   window.addEventListener("mousemove", move);
   window.addEventListener("mouseup", up);
-  canvas.addEventListener("touchstart", down, { passive: true });
+  canvas.parentElement.addEventListener("touchstart", down, { passive: true });
   window.addEventListener("touchmove", move, { passive: false });
   window.addEventListener("touchend", up);
   /*
