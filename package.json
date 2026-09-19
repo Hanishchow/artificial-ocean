@@ -5,11 +5,11 @@
   "version": "0.0.0",
   "description": "Soft-bodied creatures grown from genomes, evolved by how well they swim.",
   "scripts": {
-    "typecheck": "tsc --build",
+    "typecheck": "tsc --noEmit && pnpm purity",
     "test": "vitest run",
     "test:watch": "vitest",
     "runner": "tsx apps/runner/src/index.ts",
-    "purity": "node scripts/check-purity.mjs"
+    "purity": "tsc --noEmit -p packages/mathx && tsc --noEmit -p packages/core-types && tsc --noEmit -p packages/topology && tsc --noEmit -p packages/solver && tsc --noEmit -p packages/genome && tsc --noEmit -p packages/morphogen && tsc --noEmit -p packages/sim && tsc --noEmit -p packages/evolve && tsc --noEmit -p packages/devtools"
   },
   "devDependencies": {
     "@types/node": "^22.20.2",

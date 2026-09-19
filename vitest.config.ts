@@ -17,6 +17,7 @@ export default defineConfig({
       "@ocean/genome": pkg("genome"),
       "@ocean/morphogen": pkg("morphogen"),
       "@ocean/sim": pkg("sim"),
+      "@ocean/evolve": pkg("evolve"),
       "@ocean/devtools": pkg("devtools"),
     },
   },

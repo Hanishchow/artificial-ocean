@@ -1,9 +1,13 @@
 {
-  "files": [],
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "paths": {
-      "@ocean/*": ["./packages/*/src/index.ts"]
-    }
+    "types": [
+      "node"
+    ]
   },
-  "include": ["packages/*/src/**/*", "apps/*/src/**/*", "tests/**/*"]
+  "include": [
+    "packages/*/src/**/*",
+    "apps/*/src/**/*",
+    "tests/**/*"
+  ]
 }

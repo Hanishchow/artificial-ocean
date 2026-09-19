@@ -293,6 +293,7 @@ export function runEpisode(
     genomeId: phenotype.genomeId,
     metrics: {
       distance,
+      pathLength,
       meanSpeed: elapsed > 0 ? pathLength / elapsed : 0,
       bodyLengthsPerSecond: elapsed > 0 ? distance / bodyLength / elapsed : 0,
       ticksSurvived: survived,

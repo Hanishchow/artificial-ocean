@@ -1,3 +1,4 @@
+export * from "./plot.js";
 export interface TrajectoryPlotOptions { width?: number; height?: number; title?: string; }
 export interface Silhouette { positions: Float32Array; label?: string; }
 export interface ContactSheetCell { id: string; trajectory: Float32Array; frames: Silhouette[]; caption?: string; ok: boolean; }

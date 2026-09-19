@@ -148,7 +148,10 @@ export interface CavitySpec {
 export type AbortReason = "exploded" | "nan" | "stalled";
 
 export interface EpisodeMetrics {
+  /** Straight-line displacement from start to finish. */
   readonly distance: number;
+  /** Total distance travelled along the path. Always >= distance. */
+  readonly pathLength: number;
   readonly meanSpeed: number;
   /** Body lengths per second — the M1 gate is stated in these units. */
   readonly bodyLengthsPerSecond: number;

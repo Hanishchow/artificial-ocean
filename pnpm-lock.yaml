@@ -251,6 +251,8 @@ importers:
 
   packages/devtools: {}
 
+  packages/evolve: {}
+
   packages/genome: {}
 
   packages/mathx: {}
