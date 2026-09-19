@@ -1,5 +1,7 @@
 # Artificial Ocean
 
+**[hanishchow.github.io/artificial-ocean](https://hanishchow.github.io/artificial-ocean/)**
+
 Soft-bodied creatures grown from genome strings and bred by how well they feed
 themselves. Nobody designs the animals: a genome is 25 numbers, `develop()`
 turns it into particles and constraints, a solver makes it move, and how much
@@ -21,6 +23,11 @@ energy it nets decides whether its genes survive.
 
 18 tests. No creature in 3,840 consecutive evaluations was malformed or
 unstable.
+
+The published page is not a recording. It carries the 32 KB engine and the
+archive as genomes, and grows and simulates each creature in the browser when
+you click it — 88 KB for a hundred and twenty live animals, against 5.7 MB for
+three recorded ones.
 
 ## Running it
 
