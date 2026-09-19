@@ -21,6 +21,7 @@ import {
   ParticleSystem,
   QuadraticDragForce,
 } from "@ocean/solver";
+import { DEFAULT_FOOD, FoodField, type FoodConfig } from "./food.js";
 import { DEFAULT_WARMUP, Gait } from "./gait.js";
 
 export interface EpisodeConfig {
@@ -46,6 +47,31 @@ export interface EpisodeConfig {
   readonly flowAmplitude: number;
   readonly gait: { readonly frequency: number; readonly duty: number; readonly warmupSeconds?: number };
   readonly guards: GuardConfig;
+  readonly food: FoodConfig;
+  readonly energy: EnergyConfig;
+}
+
+/**
+ * What swimming costs and what eating is worth.
+ *
+ * The three numbers have to be the same order of magnitude as each other or the
+ * objective degenerates into one of its terms: make food too valuable and the
+ * cheapest strategy is to thrash indiscriminately, make upkeep too expensive
+ * and the best animal is the smallest one that can still exist.
+ */
+export interface EnergyConfig {
+  /** Energy per unit of muscle shortening. */
+  readonly actuationCost: number;
+  /** Multiplier on the phenotype's own basalCost, which scales with size. */
+  readonly basalRate: number;
+  /**
+   * Energy in hand at birth.
+   *
+   * Has to be enough to survive the warm-up and find the first mouthful, or
+   * every creature starves before its gait establishes and fitness measures
+   * nothing but starting reserves.
+   */
+  readonly starting: number;
 }
 
 export interface GuardConfig {
@@ -84,6 +110,23 @@ export const DEFAULT_EPISODE: Omit<EpisodeConfig, "gait"> = {
   refillEfficiency: 0.2,
   flowAmplitude: 0.02,
   guards: DEFAULT_GUARDS,
+  food: DEFAULT_FOOD,
+  energy: {
+    /*
+     * Calibrated by measurement, and the first attempt was wrong in a way worth
+     * recording. With upkeep at a tenth of this and forty energy in hand, the
+     * `inert` seed -- a creature with amplitude zero, which cannot move at all
+     * -- was the ONLY seed to survive thirty seconds, because doing nothing
+     * cost it 1.4 energy and it started with 40. Every swimmer starved. The
+     * objective was measuring starting reserves, not foraging.
+     *
+     * Upkeep now has to be paid continuously and the reserve is small, so an
+     * animal that does not eat dies inside half a minute however still it lies.
+     */
+    actuationCost: 0.005,
+    basalRate: 10,
+    starting: 10,
+  },
 };
 
 /** Assembled, tickable creature. Shared by the runner and (later) the renderer. */
@@ -91,12 +134,20 @@ export class Creature {
   readonly system: ParticleSystem;
   readonly gait: Gait;
   readonly phenotype: Phenotype;
-  private readonly flow: FlowFieldForce;
+  readonly flow: FlowFieldForce;
   private readonly distanceConstraints: DistanceConstraint[] = [];
 
   time = 0;
 
+  /** Energy in hand. The episode ends when it runs out. */
+  energy: number;
+  energySpent = 0;
+  energyGained = 0;
+  private previousWork = 0;
+
   constructor(phenotype: Phenotype, cfg: EpisodeConfig) {
+    this.energy = cfg.energy.starting;
+    this.config = cfg;
     this.phenotype = phenotype;
 
     const system = new ParticleSystem(phenotype.positions, cfg.iterations);
@@ -158,11 +209,44 @@ export class Creature {
     });
   }
 
+  private readonly config!: EpisodeConfig;
+
   step(dt: number): void {
     this.time += dt;
     this.flow.time = this.time;
     this.gait.update(this.time);
     this.system.tick(dt);
+    this.spend(dt);
+  }
+
+  /**
+   * Charge for the tick.
+   *
+   * Only muscle SHORTENING is charged; relaxation is elastic recoil and is
+   * free. That is physically honest — a contracted bell springs back on stored
+   * strain energy, which is exactly how a real medusa recovers — and it is what
+   * gives the duty-cycle gene a real gradient instead of a flat one.
+   *
+   * Upkeep scales with particle count, which is the main brake on runaway body
+   * size: every extra tentacle segment costs energy for the whole of the
+   * animal's life, so length has to earn itself back.
+   */
+  private spend(dt: number): void {
+    const work = this.gait.work;
+    const delta = Math.max(0, work - this.previousWork);
+    this.previousWork = work;
+
+    const cost =
+      delta * this.config.energy.actuationCost +
+      this.phenotype.basalCost * this.config.energy.basalRate * dt;
+
+    this.energySpent += cost;
+    this.energy -= cost;
+  }
+
+  eat(amount: number): void {
+    this.energy += amount;
+    this.energyGained += amount;
   }
 
   /**
@@ -226,6 +310,14 @@ export function runEpisode(
   const creature = new Creature(phenotype, cfg);
   const startIntegrity = creature.integrity();
 
+  const food = new FoodField(
+    cfg.food,
+    phenotype.genomeId,
+    phenotype.captureSites.length,
+    phenotype.captureRadius,
+  );
+  const flowScratch = new Float32Array(3);
+
   const trajectory = new Float32Array(ticks * 3);
   const com = new Float32Array(3);
   const start = new Float32Array(3);
@@ -248,6 +340,24 @@ export function runEpisode(
     }
 
     creature.system.centreOfMass(com);
+
+    food.update(creature.flow, dt, com[0]!, com[1]!, com[2]!, flowScratch);
+    creature.eat(
+      food.harvest(
+        phenotype.captureSites,
+        creature.system.positions,
+        phenotype.captureRadius,
+        dt,
+      ),
+    );
+
+    // Starvation is not only a rule, it is a large speedup: a hopeless animal
+    // dies in the first few seconds instead of being simulated for thirty.
+    if (creature.energy <= 0) {
+      abort = "starved";
+      survived = t + 1;
+      break;
+    }
     const x = com[0]!;
     const y = com[1]!;
     const z = com[2]!;
@@ -298,6 +408,9 @@ export function runEpisode(
       bodyLengthsPerSecond: elapsed > 0 ? distance / bodyLength / elapsed : 0,
       ticksSurvived: survived,
       workDone: creature.gait.work,
+      netEnergy: creature.energyGained - creature.energySpent,
+      captures: food.captured,
+      energySpent: creature.energySpent,
       integrityDrift,
     },
     ...(abort ? { abort } : {}),

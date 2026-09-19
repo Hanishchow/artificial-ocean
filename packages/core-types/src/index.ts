@@ -145,7 +145,7 @@ export interface CavitySpec {
 }
 
 /** Why an episode was cut short. Absent means it ran to completion. */
-export type AbortReason = "exploded" | "nan" | "stalled";
+export type AbortReason = "exploded" | "nan" | "stalled" | "starved";
 
 export interface EpisodeMetrics {
   /** Straight-line displacement from start to finish. */
@@ -157,6 +157,10 @@ export interface EpisodeMetrics {
   readonly bodyLengthsPerSecond: number;
   readonly ticksSurvived: number;
   readonly workDone: number;
+  /** Energy taken in minus energy spent, over the whole episode. */
+  readonly netEnergy: number;
+  readonly captures: number;
+  readonly energySpent: number;
   /**
    * Mean constraint violation at the end versus the start.
    *

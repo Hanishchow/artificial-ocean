@@ -6,7 +6,7 @@ Nobody designs the animals. A genome is a vector of numbers; `develop()` turns i
 into particles and constraints; a solver makes it move; how far it gets is the
 only thing that decides whether its genes survive.
 
-## Status: M0, M1 and M3 done
+## Status: M0, M1, M2 and M3 done
 
 | Gate | Target | Measured | |
 |---|---|---|---|
@@ -20,8 +20,48 @@ reached **1.58**, more than three times the threshold and twelve times anything
 authored by hand. Not one of 3,840 evaluations produced a malformed or unstable
 body.
 
-Still to build: the energy economy (M2), the renderer (M4), the exhibit (M5),
-persistence and the cron (M6).
+Still to build: the renderer (M4), the exhibit (M5), persistence and the
+cron (M6).
+
+### M2: the economy, and why tentacles came back
+
+Fitness is no longer speed. It is **net energy per second**: food caught, minus
+the muscle work and upkeep of catching it. Creatures spend energy to contract
+(shortening only — relaxation is elastic recoil and is free), pay upkeep in
+proportion to particle count, and die when they run out.
+
+Two design choices carry the weight, and both remove a degenerate strategy by
+construction rather than by penalty:
+
+**Food drifts on the same current the creature does.** A passive animal is
+carried along with its dinner at the same speed, meets almost none of it, and
+starves. Energy is only obtainable by moving *relative to the water*. Nothing
+has to penalise stillness; stillness simply does not eat.
+
+**Capture sites have a handling time.** A site that has just caught something is
+occupied for half a second. N sites can therefore never exceed N/handlingTime
+catches per second however much water they sweep, so the five hundredth tentacle
+segment adds almost nothing while still costing upkeep every tick of the
+animal's life. Without this, the winning strategy is a rake.
+
+The numbers were calibrated by measurement over three attempts, and the first
+two were wrong in instructive ways. Both are recorded in the source: with sparse
+food every seed starved and the objective was measuring starting reserves; with
+cheap upkeep the only survivor was `inert`, a creature with amplitude zero that
+physically cannot move.
+
+Where it landed, across the eight seeds:
+
+| seed | capture sites | captures | net energy | |
+|---|---|---|---|---|
+| reference | 756 | 156 | **+91.7** | best |
+| trailing | 496 | 75 | +42.3 | |
+| inert | 168 | 6 | −8.4 | sitting still loses |
+| bare | 18 | 12 | — | **starves** |
+
+The two seeds with the most capture apparatus are the two profitable ones, and
+the one without any starves. That is the exact inversion of the M3 result, where
+18 of the top 20 elites had dropped their tentacles.
 
 ## Running it
 

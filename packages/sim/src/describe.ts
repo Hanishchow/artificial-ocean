@@ -8,21 +8,28 @@
 import type { EpisodeResult, Phenotype } from "@ocean/core-types";
 
 /**
- * Fitness, for now: how fast it swims, in body lengths per second.
+ * Fitness: net energy per second.
  *
- * TEMPORARY, and worth being explicit about. The real objective is net energy —
- * food captured minus the metabolic cost of catching it — which arrives with
- * M2. Speed is a stand-in that answers the open question (can evolution find
- * creatures that swim properly?) without waiting for the economy to exist.
+ * This replaces the speed stand-in used through M3, and the reason to replace
+ * it is visible in that run's archive. With speed as the objective, 18 of the
+ * top 20 creatures had shed their tentacles entirely — correctly, since a
+ * tentacle with nothing to catch is drag and nothing else. Swimming was the
+ * only thing being rewarded, so swimming was the only thing that evolved.
  *
- * Its known weakness is that it rewards speed at any cost, since nothing here
- * charges for the work done. Body lengths rather than absolute units at least
- * removes "evolve to be enormous" as a free strategy, and `workDone` is already
- * measured and ready to become the denominator.
+ * Net energy makes both halves of the animal matter at once. Speed is still
+ * worth having, because moving relative to the current is the only way to meet
+ * food; but it now has to pay for itself in muscle work and upkeep, and an
+ * apparatus for catching things finally has something to catch.
+ *
+ * A starved creature is not scored at -Infinity but by what it managed before
+ * dying, so that "died at 25 seconds having nearly broken even" ranks above
+ * "died at 4 seconds". Only physically invalid runs are rejected outright.
  */
 export function fitnessOf(result: EpisodeResult): number {
-  if (result.abort) return -Infinity;
-  return result.metrics.bodyLengthsPerSecond;
+  if (result.abort && result.abort !== "starved") return -Infinity;
+
+  const seconds = Math.max(0.001, result.metrics.ticksSurvived / 30);
+  return result.metrics.netEnergy / seconds;
 }
 
 /**
