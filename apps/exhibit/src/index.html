@@ -143,6 +143,38 @@
   }
   .stage-meta b { color: var(--bio); font-weight: 500; }
 
+  .zoomers {
+    position: absolute;
+    right: var(--gutter);
+    bottom: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .zoomers button {
+    width: 30px;
+    height: 30px;
+    background: rgba(8, 15, 22, 0.8);
+    border: 1px solid var(--rule);
+    color: var(--ink-dim);
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .zoomers button:hover { color: var(--bio); border-color: var(--bio-dim); }
+  .zoomers button:focus-visible { outline: 1px solid var(--bio); outline-offset: 1px; }
+
+  .hint-drag {
+    position: absolute;
+    left: var(--gutter);
+    top: 18px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
+    color: var(--ink-faint);
+  }
+
   /* ------------------------------------------------------------- grid */
 
   .split {
@@ -152,14 +184,18 @@
     align-items: start;
   }
 
+  /* Columns are set from the data: one per size class. Capped so the grid
+     reads as a grid -- at full width six columns of 1fr each become 160px
+     blocks, which looks like a colour chart rather than a map of a
+     population. */
   .matrix {
     display: grid;
     gap: 3px;
-    /* Columns are set from the data: one per size class. */
+    max-width: 380px;
   }
 
   .cell {
-    aspect-ratio: 1;
+    height: 58px;
     min-width: 0;
     border: 0;
     border-radius: 1px;
@@ -202,13 +238,19 @@
     padding-right: 8px;
   }
   .rowlabels span {
-    aspect-ratio: 1;
+    height: 58px;
     display: flex;
     align-items: center;
     justify-content: flex-end;
   }
 
-  .matrix-shell { display: grid; grid-template-columns: auto minmax(0, 1fr); }
+  .matrix-shell {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    justify-content: start;
+  }
+  .matrix-axes { max-width: 380px; }
+  .swatch-row { max-width: 420px; }
 
   /* ------------------------------------------------------------- panel */
 
@@ -321,7 +363,12 @@
 
 <div class="stage">
   <canvas id="tank"></canvas>
+  <p class="hint-drag">drag to turn</p>
   <div class="stage-meta" id="stagemeta"></div>
+  <div class="zoomers">
+    <button type="button" id="zoomin" aria-label="Zoom in">+</button>
+    <button type="button" id="zoomout" aria-label="Zoom out">&minus;</button>
+  </div>
   <div class="stage-copy">
     <h1>Artificial Ocean</h1>
     <p>Soft-bodied creatures grown from genome strings and bred by how well they feed themselves. Nobody drew any of them.</p>
@@ -765,10 +812,27 @@
   canvas.addEventListener("touchstart", down, { passive: true });
   window.addEventListener("touchmove", move, { passive: false });
   window.addEventListener("touchend", up);
+  /*
+   * Zoom needs a modifier; a bare wheel scrolls the page.
+   *
+   * A full-screen app can own the wheel. This is a page with sections below
+   * the tank, and a canvas that swallows every wheel event traps the reader at
+   * the top with no indication that anything is below. Holding ctrl or cmd to
+   * zoom is the convention maps use for exactly this situation.
+   */
   canvas.addEventListener("wheel", function (e) {
+    if (!e.ctrlKey && !e.metaKey) return;
     distance = Math.max(20, Math.min(280, distance * (1 + e.deltaY * 0.0012)));
     e.preventDefault();
   }, { passive: false });
+
+  // Buttons, because a modifier is not discoverable and touch has no wheel.
+  document.getElementById("zoomin").addEventListener("click", function () {
+    distance = Math.max(20, distance * 0.82);
+  });
+  document.getElementById("zoomout").addEventListener("click", function () {
+    distance = Math.min(280, distance * 1.22);
+  });
 
   // ------------------------------------------------------------- loop
 
