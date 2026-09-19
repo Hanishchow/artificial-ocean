@@ -23,10 +23,26 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const run = process.argv[2] ?? "ocean";
 
-const archivePath = join(root, "data", `${run}-archive.json`);
+let archivePath = join(root, "data", `${run}-archive.json`);
+
+// Fall back to whatever archive exists rather than failing the deploy. A
+// scheduled build should publish the population it has, not go dark because a
+// run was renamed.
 if (!existsSync(archivePath)) {
-  console.error(`no archive at data/${run}-archive.json — run \`pnpm runner evolve\` first`);
-  process.exit(1);
+  const { readdirSync, statSync } = await import("node:fs");
+  const dir = join(root, "data");
+  const found = existsSync(dir)
+    ? readdirSync(dir)
+        .filter((f) => f.endsWith("-archive.json"))
+        .map((f) => ({ f, t: statSync(join(dir, f)).mtimeMs }))
+        .sort((a, b) => b.t - a.t)
+    : [];
+  if (!found.length) {
+    console.error("no archive in data/ — run `pnpm runner evolve` first");
+    process.exit(1);
+  }
+  archivePath = join(dir, found[0].f);
+  console.log(`  no ${run}-archive.json; using ${found[0].f}`);
 }
 
 const snapshot = JSON.parse(readFileSync(archivePath, "utf8"));

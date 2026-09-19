@@ -91,7 +91,19 @@
     overflow: hidden;
   }
 
-  #tank { position: absolute; inset: 0; display: block; touch-action: none; }
+  /* width/height are NOT redundant with inset:0. A canvas is a REPLACED
+     element, so an absolutely positioned one with left and right both zero and
+     width:auto resolves to its INTRINSIC 300x150 rather than stretching to its
+     container. The page then renders a postage stamp in the corner of a
+     full-width tank, which is exactly what it did. */
+  #tank {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
 
   .stage-copy {
     position: absolute;
@@ -498,7 +510,8 @@
   // ------------------------------------------------------------- motes
   // Marine snow, standing in for the food the creatures are foraging in.
 
-  var MOTES = 700, SPAN = 150;
+  var MOTES = Math.min(window.innerWidth, window.innerHeight) < 700 ? 260 : 700;
+  var SPAN = 150;
   var motePos = new Float32Array(MOTES * 3);
   var seed = 7;
   function rnd() { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; }
@@ -529,6 +542,25 @@
     color: 0x92ded4, transparent: true, opacity: 0.42
   });
 
+  /*
+   * Particle budget, by screen.
+   *
+   * The solver runs on the CPU here, and its cost is roughly linear in
+   * particles times constraints times two iterations. A phone asked to solve
+   * 2,600 particles a frame drops to single figures and the page reads as
+   * broken rather than slow. Development takes a resolution argument precisely
+   * so the SAME genome can be grown coarse or fine: a narrow screen gets a
+   * smaller body, not a smaller framerate.
+   *
+   * Measured once at load rather than on resize, because re-growing the animal
+   * mid-swim would restart its gait.
+   */
+  var narrow = Math.min(window.innerWidth, window.innerHeight) < 700;
+  // 1600, not 900: the budget still has to be large enough to BUILD a body.
+  // Below roughly 1500 the bigger bells cannot be developed at all, and the
+  // engine falls back to a coarser mesh rather than a smaller animal.
+  var BUDGET = narrow ? 1600 : 2600;
+
   var live = null, geom = null, selectedKey = null;
   var distance = 90, azimuth = 0.7, elevation = 0.3;
   var comScratch = new Float32Array(3);
@@ -537,9 +569,14 @@
     if (!Ocean) return;
     var made;
     try {
-      // Grown here, now, from 25 numbers. Nothing is downloaded but the genome.
-      made = Ocean.creatureFromGenes(cell.genes, { maxParticles: 2600 });
+      // Grown here, now, from 24 numbers. Nothing is downloaded but the genome.
+      made = Ocean.creatureFromGenes(cell.genes, { maxParticles: BUDGET });
     } catch (e) {
+      // Say so rather than returning quietly. An earlier version swallowed
+      // this, and an over-tight particle budget presented as an empty tank
+      // with no indication that anything had gone wrong.
+      document.getElementById("readout").innerHTML =
+        "<dt>error</dt><dd class='flag'>" + (e && e.message ? e.message : "could not grow this genome") + "</dd>";
       return;
     }
 
@@ -616,6 +653,7 @@
     document.getElementById("stagemeta").innerHTML =
       "<b>" + cell.fitness.toFixed(2) + " energy/s</b>" +
       "<span>" + live.particleCount + " particles, simulated live</span>" +
+      (narrow ? "<span>reduced detail for this screen</span>" : "") +
       "<span>genome " + live.genome.id.slice(0, 8) + "</span>";
   }
 

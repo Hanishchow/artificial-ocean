@@ -39,7 +39,7 @@ import type { EpisodeConfig } from "@ocean/sim";
 import type { Phenotype } from "@ocean/core-types";
 
 export interface LiveOptions {
-  /** Particle ceiling. The page picks this from how many creatures it shows. */
+  /** Particle ceiling. The page picks this from the screen it is running on. */
   readonly maxParticles?: number;
   /** Ambient current. Zero holds a specimen still for inspection. */
   readonly flowAmplitude?: number;
@@ -61,10 +61,26 @@ export class LiveCreature {
 
   constructor(genome: Genome, opts: LiveOptions = {}) {
     const traits = decode(genome);
-    const dev = develop(genome, {
-      ...DISPLAY_OPTIONS,
-      maxParticles: opts.maxParticles ?? DISPLAY_OPTIONS.maxParticles,
-    });
+    const budget = opts.maxParticles ?? DISPLAY_OPTIONS.maxParticles;
+
+    /*
+     * Try the fine mesh, fall back to the coarse one.
+     *
+     * Display resolution doubles mesh density, so a creature whose bell alone
+     * needs 1,500 particles at display resolution cannot be built inside a
+     * small budget AT ALL -- development is right to refuse, because silently
+     * shrinking the bell would mean showing an animal the genome does not
+     * describe. Retrying at evaluation resolution changes the MESH and not the
+     * creature, which is exactly the distinction the resolution parameter
+     * exists to draw.
+     *
+     * This mattered immediately: a phone-sized budget made every creature in
+     * the archive unbuildable, and the tank rendered empty.
+     */
+    let dev = develop(genome, { ...DISPLAY_OPTIONS, maxParticles: budget });
+    if (!dev.ok && dev.reason === "particle-budget") {
+      dev = develop(genome, { ...EVAL_OPTIONS, maxParticles: budget });
+    }
     if (!dev.ok) {
       throw new Error(`cannot develop ${genome.id}: ${dev.reason} ${dev.detail}`);
     }
