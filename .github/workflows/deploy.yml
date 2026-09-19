@@ -1,0 +1,51 @@
+# Publish the exhibit whenever the code or the population changes.
+#
+# The Evolve workflow commits a new archive every hour, which lands on main and
+# triggers this, so the published page always shows the creatures that exist
+# right now rather than the ones that existed at the last manual deploy.
+name: Deploy exhibit
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Queue rather than cancel: cancelling mid-publish can leave the site
+# half-updated.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm build:exhibit
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/exhibit/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

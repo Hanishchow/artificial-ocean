@@ -1,0 +1,784 @@
+<title>Artificial Ocean</title>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  /* Committed to one visual world: a deep-water observation deck. A light
+     variant would be a different instrument, so every colour is painted
+     explicitly and nothing is borrowed from the host's theme. */
+  :root {
+    --abyss: #050910;
+    --deep: #0a121b;
+    --panel: rgba(8, 15, 22, 0.86);
+    --rule: #1a2634;
+    --rule-soft: #121c27;
+    --ink: #dce6f0;
+    --ink-dim: #8194a6;
+    --ink-faint: #4f6070;
+    --bio: #47d4c4;
+    --bio-dim: #2b8b83;
+    --amber: #dc9a4e;
+    --rose: #d97b8c;
+
+    --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    --gutter: clamp(16px, 4vw, 44px);
+  }
+
+  body {
+    margin: 0;
+    background: var(--abyss);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding-inline: var(--gutter);
+  }
+
+  h2 {
+    margin: 0 0 6px;
+    font-size: clamp(21px, 2.6vw, 29px);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+
+  h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  p { margin: 0 0 14px; max-width: 64ch; }
+  p:last-child { margin-bottom: 0; }
+
+  .lede { color: var(--ink-dim); font-size: 16px; }
+  .dim { color: var(--ink-dim); }
+  .faint { color: var(--ink-faint); font-size: 13.5px; }
+
+  .label {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--bio-dim);
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.92em;
+    color: var(--bio);
+  }
+
+  section { padding-block: clamp(40px, 7vw, 76px); }
+  section + section { border-top: 1px solid var(--rule-soft); }
+
+  /* ------------------------------------------------------------- tank */
+
+  .stage {
+    position: relative;
+    height: 62vh;
+    min-height: 380px;
+    background: var(--deep);
+    border-bottom: 1px solid var(--rule);
+    overflow: hidden;
+  }
+
+  #tank { position: absolute; inset: 0; display: block; touch-action: none; }
+
+  .stage-copy {
+    position: absolute;
+    left: var(--gutter);
+    bottom: 22px;
+    right: var(--gutter);
+    pointer-events: none;
+  }
+
+  h1 {
+    margin: 0 0 4px;
+    font-size: clamp(26px, 5vw, 46px);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+  }
+
+  .stage-copy p {
+    margin: 0;
+    max-width: 46ch;
+    color: var(--ink-dim);
+    font-size: 14px;
+  }
+
+  .stage-meta {
+    position: absolute;
+    right: var(--gutter);
+    top: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-faint);
+    text-align: right;
+  }
+  .stage-meta b { color: var(--bio); font-weight: 500; }
+
+  /* ------------------------------------------------------------- grid */
+
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: clamp(20px, 3vw, 40px);
+    align-items: start;
+  }
+
+  .matrix {
+    display: grid;
+    gap: 3px;
+    /* Columns are set from the data: one per size class. */
+  }
+
+  .cell {
+    aspect-ratio: 1;
+    min-width: 0;
+    border: 0;
+    border-radius: 1px;
+    padding: 0;
+    cursor: pointer;
+    background: var(--rule-soft);
+    transition: transform 100ms ease, box-shadow 100ms ease;
+  }
+  .cell[data-filled="1"]:hover,
+  .cell[data-filled="1"]:focus-visible {
+    transform: scale(1.22);
+    box-shadow: 0 0 0 1px var(--bio);
+    outline: none;
+    z-index: 2;
+    position: relative;
+  }
+  .cell[aria-pressed="true"] {
+    box-shadow: 0 0 0 1.5px var(--ink);
+    z-index: 3;
+    position: relative;
+  }
+  .cell[data-filled="0"] { cursor: default; }
+
+  .matrix-axes {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--ink-faint);
+  }
+
+  .rowlabels {
+    display: grid;
+    gap: 3px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-faint);
+    text-align: right;
+    padding-right: 8px;
+  }
+  .rowlabels span {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .matrix-shell { display: grid; grid-template-columns: auto minmax(0, 1fr); }
+
+  /* ------------------------------------------------------------- panel */
+
+  .card {
+    background: var(--deep);
+    border: 1px solid var(--rule);
+    padding: 16px 18px;
+  }
+
+  .readout {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 2px 14px;
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .readout dt { color: var(--ink-faint); }
+  .readout dd { margin: 0; text-align: right; color: var(--ink); }
+  .readout dd u { color: var(--ink-faint); text-decoration: none; }
+  .readout .hi { color: var(--bio); }
+  .readout .flag { color: var(--amber); }
+
+  .swatch-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--ink-faint);
+  }
+  .scale {
+    flex: 1;
+    height: 8px;
+    background: linear-gradient(90deg, #12313c, #1d6f6e, #47d4c4, #b6f2e6);
+  }
+
+  button.action {
+    margin-top: 14px;
+    width: 100%;
+    padding: 9px;
+    background: none;
+    border: 1px solid var(--rule);
+    color: var(--ink-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: color 120ms ease, border-color 120ms ease;
+  }
+  button.action:hover { color: var(--bio); border-color: var(--bio-dim); }
+  button.action:focus-visible { outline: 1px solid var(--bio); outline-offset: 2px; }
+
+  /* ------------------------------------------------------------- table */
+
+  .compare {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin-top: 6px;
+  }
+  .compare th, .compare td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--rule-soft);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .compare th:first-child, .compare td:first-child {
+    text-align: left;
+    color: var(--ink-dim);
+    font-weight: 400;
+  }
+  .compare thead th {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    border-bottom-color: var(--rule);
+  }
+  .compare .win { color: var(--bio); }
+  .compare .lose { color: var(--amber); }
+
+  .cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: clamp(18px, 3vw, 34px);
+    margin-top: 22px;
+  }
+
+  footer {
+    padding-block: 34px 44px;
+    border-top: 1px solid var(--rule-soft);
+    color: var(--ink-faint);
+    font-size: 13px;
+  }
+
+  @media (max-width: 860px) {
+    .split { grid-template-columns: minmax(0, 1fr); }
+    .stage { height: 52vh; }
+    .stage-meta { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cell { transition: none; }
+  }
+</style>
+
+<div class="stage">
+  <canvas id="tank"></canvas>
+  <div class="stage-meta" id="stagemeta"></div>
+  <div class="stage-copy">
+    <h1>Artificial Ocean</h1>
+    <p>Soft-bodied creatures grown from genome strings and bred by how well they feed themselves. Nobody drew any of them.</p>
+  </div>
+</div>
+
+<section class="wrap">
+  <p class="label">The archive</p>
+  <h2>Every kind of creature the search has found</h2>
+  <p class="lede">
+    The search does not keep the best animals. It keeps the best animal of each
+    <em>kind</em> &mdash; one per cell of a grid over body shape, size, speed and
+    efficiency. A fast wide creature never competes with a slow narrow one, so
+    the population stays varied instead of collapsing onto a single optimum.
+  </p>
+
+  <div class="split" style="margin-top: 26px">
+    <div>
+      <div class="matrix-shell">
+        <div class="rowlabels" id="rowlabels"></div>
+        <div>
+          <div class="matrix" id="matrix"></div>
+          <div class="matrix-axes">
+            <span id="axmin"></span>
+            <span class="dim">bell radius &rarr;</span>
+            <span id="axmax"></span>
+          </div>
+        </div>
+      </div>
+      <div class="swatch-row">
+        <span>lean</span>
+        <span class="scale"></span>
+        <span>productive</span>
+      </div>
+      <p class="faint" style="margin-top: 14px">
+        Each square is one cell of the grid, shaded by how much energy its
+        occupant nets per second. Empty squares are kinds of creature the search
+        has not reached &mdash; some are simply unvisited, others are
+        combinations a body of this design cannot physically be. Click any
+        filled square to grow that genome and watch it swim.
+      </p>
+    </div>
+
+    <div class="card">
+      <p class="label" style="margin: 0 0 10px">Specimen</p>
+      <dl class="readout" id="readout"></dl>
+      <button class="action" type="button" id="shuffle">SHOW ME ANOTHER</button>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <p class="label">The finding</p>
+  <h2>The objective decides the animal</h2>
+  <p class="lede">
+    Two runs of the same search, from the same hand-written starting animals,
+    under the same physics. The only difference was what fitness meant.
+  </p>
+
+  <table class="compare">
+    <thead>
+      <tr>
+        <th scope="col">After 60&ndash;80 generations</th>
+        <th scope="col">Bred for speed</th>
+        <th scope="col">Bred for food</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Top-20 elites keeping tentacles</td>
+        <td class="lose">2 of 20</td>
+        <td class="win">20 of 20</td>
+      </tr>
+      <tr>
+        <td>Mean tentacles across top-20</td>
+        <td class="lose">1.1</td>
+        <td class="win">24.8</td>
+      </tr>
+      <tr>
+        <td>Champion bell radius</td>
+        <td>5.5</td>
+        <td>20.1</td>
+      </tr>
+      <tr>
+        <td>Champion tentacles</td>
+        <td class="lose">0</td>
+        <td class="win">24</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="cols">
+    <div>
+      <h3>Why speed deletes tentacles</h3>
+      <p class="dim">
+        With distance as the only reward, a tentacle is drag and nothing else.
+        The search correctly throws them away and builds a narrow dart &mdash;
+        four times narrower than anything written by hand.
+      </p>
+    </div>
+    <div>
+      <h3>Why food brings them back</h3>
+      <p class="dim">
+        Add drifting food and a metabolism and the same search, from the same
+        seeds, builds something four times wider that keeps every tentacle it
+        can afford to feed.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <p class="label">How it works</p>
+  <h2>Growth, not authorship</h2>
+
+  <div class="cols">
+    <div>
+      <h3>A genome is 25 numbers</h3>
+      <p class="dim">
+        Every gene sits in the range 0 to 1, and each maps onto a span of real
+        values chosen to be survivable. No mutation can produce a malformed
+        animal, which is why 3,840 consecutive evaluations produced no broken
+        body at all.
+      </p>
+    </div>
+    <div>
+      <h3>Development builds a body</h3>
+      <p class="dim">
+        Rings of particles, hooped and braced and joined to their neighbours,
+        with one muscle per rib. The travelling contraction wave is not
+        animated &mdash; it emerges from the solver's own propagation delay.
+      </p>
+    </div>
+    <div>
+      <h3>The bell is a pump</h3>
+      <p class="dim">
+        Thrust comes from squeezing water out of the cavity under the bell, not
+        from paddling. Drag alone produced 0.019 body-lengths per second;
+        adding the jet produced 1.58.
+      </p>
+    </div>
+    <div>
+      <h3>Nothing here is a recording</h3>
+      <p class="dim">
+        The creatures above are being simulated in this page right now, grown
+        from their genomes when you click. The entire physics engine is 32&nbsp;KB.
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer class="wrap">
+  <p style="margin:0">
+    Verlet solver ported from Particulate.js by Ash Weeks, Artistic-2.0.
+    Creature design, growth, economy and search are new work.
+  </p>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="engine.js"></script>
+<script src="archive.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var ARCHIVE = window.ARCHIVE || { cells: [], dimensions: [] };
+  var Ocean = window.Ocean;
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var canvas = document.getElementById("tank");
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.setClearColor(0x0a121b, 1);
+
+  var scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0a121b, 0.009);
+  var camera = new THREE.PerspectiveCamera(40, 1, 0.5, 700);
+
+  scene.add(new THREE.AmbientLight(0x27414f, 1.0));
+  var key = new THREE.DirectionalLight(0x9fe8de, 1.2);
+  key.position.set(0.4, 1, 0.5);
+  scene.add(key);
+  var fill = new THREE.DirectionalLight(0x2d6c84, 0.55);
+  fill.position.set(-0.6, -1, -0.35);
+  scene.add(fill);
+
+  // ------------------------------------------------------------- motes
+  // Marine snow, standing in for the food the creatures are foraging in.
+
+  var MOTES = 700, SPAN = 150;
+  var motePos = new Float32Array(MOTES * 3);
+  var seed = 7;
+  function rnd() { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; }
+  for (var i = 0; i < MOTES; i++) {
+    motePos[i * 3] = (rnd() - 0.5) * SPAN;
+    motePos[i * 3 + 1] = (rnd() - 0.5) * SPAN;
+    motePos[i * 3 + 2] = (rnd() - 0.5) * SPAN;
+  }
+  var moteGeom = new THREE.BufferGeometry();
+  moteGeom.setAttribute("position", new THREE.BufferAttribute(motePos, 3));
+  scene.add(new THREE.Points(moteGeom, new THREE.PointsMaterial({
+    color: 0x5f8296, size: 0.42, transparent: true, opacity: 0.5, sizeAttenuation: true
+  })));
+
+  // ------------------------------------------------------------- specimen
+
+  var group = new THREE.Group();
+  scene.add(group);
+
+  var gel = new THREE.MeshPhongMaterial({
+    color: 0x6fe4d6, emissive: 0x0b3835, specular: 0xbffff6, shininess: 55,
+    transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false
+  });
+  var rim = new THREE.MeshBasicMaterial({
+    color: 0x47d4c4, wireframe: true, transparent: true, opacity: 0.11
+  });
+  var strand = new THREE.LineBasicMaterial({
+    color: 0x92ded4, transparent: true, opacity: 0.42
+  });
+
+  var live = null, geom = null, selectedKey = null;
+  var distance = 90, azimuth = 0.7, elevation = 0.3;
+  var comScratch = new Float32Array(3);
+
+  function show(cell) {
+    if (!Ocean) return;
+    var made;
+    try {
+      // Grown here, now, from 25 numbers. Nothing is downloaded but the genome.
+      made = Ocean.creatureFromGenes(cell.genes, { maxParticles: 2600 });
+    } catch (e) {
+      return;
+    }
+
+    while (group.children.length) group.remove(group.children[0]);
+    if (geom) geom.dispose();
+
+    live = made;
+    selectedKey = cell.key;
+
+    var ph = live.phenotype;
+    var bulb = null, tent = null;
+    for (var s = 0; s < ph.surfaces.length; s++) {
+      if (ph.surfaces[s].name === "bulb") bulb = ph.surfaces[s];
+      if (ph.surfaces[s].name === "tentacles") tent = ph.surfaces[s];
+    }
+
+    geom = new THREE.BufferGeometry();
+    // Zero-copy: the solver writes into the very buffer the GPU reads.
+    geom.setAttribute("position", new THREE.BufferAttribute(live.positions, 3));
+    if (bulb && bulb.faces.length) {
+      geom.setIndex(new THREE.BufferAttribute(bulb.faces, 1));
+      geom.computeVertexNormals();
+      group.add(new THREE.Mesh(geom, gel));
+      group.add(new THREE.Mesh(geom, rim));
+    }
+    if (tent && tent.lines.length) {
+      var lg = new THREE.BufferGeometry();
+      lg.setAttribute("position", geom.getAttribute("position"));
+      lg.setIndex(new THREE.BufferAttribute(tent.lines, 1));
+      group.add(new THREE.LineSegments(lg, strand));
+    }
+
+    distance = Math.max(38, ph.bounds.height * 2.4);
+    paintReadout(cell);
+    markSelected();
+  }
+
+  // ------------------------------------------------------------- readout
+
+  function row(t, v, u, cls) {
+    return "<dt>" + t + "</dt><dd class='" + (cls || "") + "'>" + v +
+      (u ? " <u>" + u + "</u>" : "") + "</dd>";
+  }
+
+  function paintReadout(cell) {
+    if (!live) return;
+    var tr = Ocean.decode(live.genome);
+    var b = cell.behaviour || [];
+    var tent = Math.round(tr.tentaclesPerSector) * Math.round(tr.radialSymmetry);
+    var html = "";
+    html += row("net energy", cell.fitness.toFixed(2), "/s", "hi");
+    html += row("bell radius", tr.bellRadius.toFixed(1), "u");
+    html += row("bell height", tr.bellHeight.toFixed(1), "u");
+    html += row("symmetry", Math.round(tr.radialSymmetry) + "-fold", "");
+    html += row("ribs", Math.round(tr.ribCount), "");
+    html += row("tentacles", tent, "", tent === 0 ? "flag" : "");
+    html += row("pulse", tr.pulseFreq.toFixed(2), "Hz");
+    html += row("duty", tr.pulseDuty.toFixed(2), "");
+    html += row("amplitude", tr.pulseAmplitude.toFixed(2), "");
+    // Labels come from the archive's own dimension list rather than being
+    // hardcoded here. The grid has already been changed once -- a straightness
+    // axis that measured almost nothing became an efficiency axis -- and a
+    // hardcoded label would have gone on confidently naming the old one.
+    for (var di = 2; di < (ARCHIVE.dimensions || []).length; di++) {
+      if (b.length > di) {
+        html += row(ARCHIVE.dimensions[di].key, b[di].toFixed(2), "");
+      }
+    }
+    html += row("particles", live.particleCount, "");
+    html += row("generation", cell.generation, "");
+    html += row("genome", live.genome.id.slice(0, 8), "");
+    document.getElementById("readout").innerHTML = html;
+
+    document.getElementById("stagemeta").innerHTML =
+      "<b>" + cell.fitness.toFixed(2) + " energy/s</b>" +
+      "<span>" + live.particleCount + " particles, simulated live</span>" +
+      "<span>genome " + live.genome.id.slice(0, 8) + "</span>";
+  }
+
+  // ------------------------------------------------------------- matrix
+  // The archive projected onto its two most legible axes: body shape down,
+  // size across. Where several creatures share a square the best is shown,
+  // which is the same rule the archive itself uses one dimension deeper.
+
+  var byCell = {};
+  var maxFit = 0, minFit = Infinity;
+  for (var c = 0; c < ARCHIVE.cells.length; c++) {
+    var cell = ARCHIVE.cells[c];
+    if (cell.fitness > maxFit) maxFit = cell.fitness;
+    if (cell.fitness < minFit) minFit = cell.fitness;
+    var parts = cell.key.split(".");
+    var k = parts[0] + "." + parts[1];
+    if (!byCell[k] || byCell[k].fitness < cell.fitness) byCell[k] = cell;
+  }
+
+  var dimAspect = ARCHIVE.dimensions[0] || { bins: 8, min: 0, max: 6.5 };
+  var dimSize = ARCHIVE.dimensions[1] || { bins: 6, min: 4, max: 23 };
+
+  function shade(f) {
+    // Four stops from lean to productive. A single hue ramp would hide the
+    // middle of the range, which is where most of the archive lives.
+    var t = maxFit > minFit ? (f - minFit) / (maxFit - minFit) : 0.5;
+    t = Math.max(0, Math.min(1, t));
+    var stops = [[18,49,60],[29,111,110],[71,212,196],[182,242,230]];
+    var x = t * (stops.length - 1);
+    var i0 = Math.floor(x), i1 = Math.min(stops.length - 1, i0 + 1), u = x - i0;
+    var r = Math.round(stops[i0][0] + (stops[i1][0] - stops[i0][0]) * u);
+    var g = Math.round(stops[i0][1] + (stops[i1][1] - stops[i0][1]) * u);
+    var b = Math.round(stops[i0][2] + (stops[i1][2] - stops[i0][2]) * u);
+    return "rgb(" + r + "," + g + "," + b + ")";
+  }
+
+  var matrix = document.getElementById("matrix");
+  var rowlabels = document.getElementById("rowlabels");
+  matrix.style.gridTemplateColumns = "repeat(" + dimSize.bins + ", minmax(0, 1fr))";
+  rowlabels.style.gridTemplateRows = "repeat(" + dimAspect.bins + ", minmax(0, 1fr))";
+
+  var buttons = [];
+  for (var a = dimAspect.bins - 1; a >= 0; a--) {
+    var lo = dimAspect.min + ((dimAspect.max - dimAspect.min) * a) / dimAspect.bins;
+    var span = document.createElement("span");
+    span.textContent = lo.toFixed(1);
+    rowlabels.appendChild(span);
+
+    for (var z = 0; z < dimSize.bins; z++) {
+      var rec = byCell[a + "." + z];
+      var btn = document.createElement("button");
+      btn.className = "cell";
+      btn.type = "button";
+      btn.setAttribute("data-filled", rec ? "1" : "0");
+      if (rec) {
+        btn.style.background = shade(rec.fitness);
+        btn.setAttribute("aria-label",
+          "shape " + lo.toFixed(1) + ", size class " + (z + 1) +
+          ", " + rec.fitness.toFixed(2) + " energy per second");
+        btn.setAttribute("data-key", rec.key);
+        (function (r) {
+          btn.addEventListener("click", function () { show(r); });
+        })(rec);
+      } else {
+        btn.disabled = true;
+        btn.setAttribute("aria-hidden", "true");
+      }
+      buttons.push(btn);
+      matrix.appendChild(btn);
+    }
+  }
+
+  function markSelected() {
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].setAttribute("aria-pressed",
+        String(buttons[i].getAttribute("data-key") === selectedKey));
+    }
+  }
+
+  document.getElementById("axmin").textContent = dimSize.min.toFixed(0) + "u";
+  document.getElementById("axmax").textContent = dimSize.max.toFixed(0) + "u";
+
+  // ------------------------------------------------------------- controls
+
+  var ranked = ARCHIVE.cells.slice().sort(function (p, q) { return q.fitness - p.fitness; });
+  var pick = 0;
+  document.getElementById("shuffle").addEventListener("click", function () {
+    if (!ranked.length) return;
+    // Walk the top of the archive rather than jumping at random: consecutive
+    // clicks then show genuinely different designs instead of re-rolling.
+    pick = (pick + 1) % Math.min(24, ranked.length);
+    show(ranked[pick]);
+  });
+
+  var dragging = false, lastX = 0, lastY = 0;
+  function down(e) { dragging = true; var p = e.touches ? e.touches[0] : e; lastX = p.clientX; lastY = p.clientY; }
+  function move(e) {
+    if (!dragging) return;
+    var p = e.touches ? e.touches[0] : e;
+    azimuth -= (p.clientX - lastX) * 0.006;
+    elevation = Math.max(-1.3, Math.min(1.3, elevation + (p.clientY - lastY) * 0.005));
+    lastX = p.clientX; lastY = p.clientY;
+    if (e.touches) e.preventDefault();
+  }
+  function up() { dragging = false; }
+  canvas.addEventListener("mousedown", down);
+  window.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", up);
+  canvas.addEventListener("touchstart", down, { passive: true });
+  window.addEventListener("touchmove", move, { passive: false });
+  window.addEventListener("touchend", up);
+  canvas.addEventListener("wheel", function (e) {
+    distance = Math.max(20, Math.min(280, distance * (1 + e.deltaY * 0.0012)));
+    e.preventDefault();
+  }, { passive: false });
+
+  // ------------------------------------------------------------- loop
+
+  function resize() {
+    var r = canvas.getBoundingClientRect();
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(r.width, r.height, false);
+    camera.aspect = r.width / Math.max(1, r.height);
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  var last = 0;
+  function tick(now) {
+    requestAnimationFrame(tick);
+    var dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
+    last = now;
+
+    if (live && !reduced) {
+      live.advance(dt);
+      var attr = geom.getAttribute("position");
+      attr.needsUpdate = true;
+      geom.computeVertexNormals();
+
+      /*
+       * Hold the animal at the origin by offsetting the group that draws it,
+       * and leave the motes where they are in world space.
+       *
+       * Moving the whole scene instead would carry the motes along with the
+       * creature, and the one thing worth seeing -- that it is travelling
+       * through the water -- would vanish. Offsetting only the creature makes
+       * the marine snow stream past at exactly the speed it really swims.
+       */
+      live.centre(comScratch);
+      group.position.set(-comScratch[0], -comScratch[1], -comScratch[2]);
+    }
+
+    camera.position.set(
+      Math.cos(azimuth) * Math.cos(elevation) * distance,
+      Math.sin(elevation) * distance,
+      Math.sin(azimuth) * Math.cos(elevation) * distance
+    );
+    camera.lookAt(0, 0, 0);
+    renderer.render(scene, camera);
+  }
+
+  if (ranked.length) show(ranked[0]);
+  requestAnimationFrame(tick);
+})();
+</script>

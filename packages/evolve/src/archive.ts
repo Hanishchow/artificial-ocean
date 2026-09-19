@@ -33,25 +33,43 @@ export interface BehaviourDimension {
 /**
  * The grid.
  *
- * Chosen partly for VISUAL variety, not only for functional variety. Aspect
- * ratio and reach are what a viewer actually notices about a creature; speed
- * and straightness are what they notice about how it moves. A grid over, say,
- * rib count and slack ratio would be just as valid evolutionarily and would
- * produce a gallery of animals that all look the same.
+ * Chosen partly for VISUAL variety, not only for functional variety. Shape and
+ * size are what a viewer notices about a creature standing still; speed and
+ * efficiency are what they notice about how it lives. A grid over, say, rib
+ * count and slack ratio would be just as valid evolutionarily and would produce
+ * a gallery of animals that all look the same.
  */
 export const DIMENSIONS: readonly BehaviourDimension[] = [
-  /** Tall and narrow through to wide and flat. */
-  { key: "aspect", min: 0.15, max: 4.0, bins: 8 },
-  /** Bell radius, so a grid cell is a size class as well as a shape. */
-  { key: "size", min: 4, max: 22, bins: 6 },
-  /** Measured, not asked for: body lengths per second actually achieved. */
-  { key: "speed", min: 0, max: 0.9, bins: 6 },
   /**
-   * Net displacement over path length. 1 is a straight line; near 0 is an
-   * animal that swam hard in a circle. Without this dimension the archive
-   * happily fills with creatures that thrash impressively and stay put.
+   * Tall and narrow through to wide and flat.
+   *
+   * The range was 0.15 to 4 and creatures reached 6.2, so the top bin was a
+   * dumping ground rather than a class. Ranges here have to cover what the
+   * search actually produces, or clamping quietly merges distinct animals.
    */
-  { key: "straightness", min: 0, max: 1, bins: 4 },
+  { key: "aspect", min: 0.15, max: 6.5, bins: 8 },
+  /** Bell radius, so a grid cell is a size class as well as a shape. */
+  { key: "size", min: 4, max: 23, bins: 6 },
+  /** Measured, not asked for: body lengths per second actually achieved. */
+  { key: "speed", min: 0, max: 1.5, bins: 6 },
+  /*
+   * Energy earned per unit spent.
+   *
+   * This replaces a straightness dimension -- net displacement over path
+   * length -- that measured almost nothing. 113 of 122 archived creatures sat
+   * in its top bin, so it multiplied the grid by four and the variety by about
+   * 1.07, and the real coverage was hidden behind three empty bins.
+   *
+   * In hindsight it could not have worked: nothing in the body plan can steer,
+   * so every creature swims in a straight line and straightness is very nearly
+   * a constant. A dimension has to measure something the animals can actually
+   * differ in.
+   *
+   * Efficiency can. It separates a big showy swimmer that eats a lot and burns
+   * a lot from a frugal one that barely moves and barely needs to, and both
+   * are worth having in the tank.
+   */
+  { key: "efficiency", min: 0, max: 3, bins: 4 },
 ];
 
 export const CELL_COUNT = DIMENSIONS.reduce((n, d) => n * d.bins, 1);

@@ -1,0 +1,15 @@
+{
+  "name": "@ocean/exhibit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@ocean/core-types": "workspace:*",
+    "@ocean/genome": "workspace:*",
+    "@ocean/mathx": "workspace:*",
+    "@ocean/morphogen": "workspace:*",
+    "@ocean/sim": "workspace:*",
+    "@ocean/solver": "workspace:*",
+    "@ocean/topology": "workspace:*"
+  }
+}

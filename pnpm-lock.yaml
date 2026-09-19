@@ -210,6 +210,9 @@ importers:
       '@types/node':
         specifier: ^22.20.2
         version: 22.20.3
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
       tsx:
         specifier: ^4.20.6
         version: 4.23.13
@@ -219,6 +222,30 @@ importers:
       vitest:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@22.20.3)(tsx@4.23.13)
+
+  apps/exhibit:
+    dependencies:
+      '@ocean/core-types':
+        specifier: workspace:*
+        version: link:../../packages/core-types
+      '@ocean/genome':
+        specifier: workspace:*
+        version: link:../../packages/genome
+      '@ocean/mathx':
+        specifier: workspace:*
+        version: link:../../packages/mathx
+      '@ocean/morphogen':
+        specifier: workspace:*
+        version: link:../../packages/morphogen
+      '@ocean/sim':
+        specifier: workspace:*
+        version: link:../../packages/sim
+      '@ocean/solver':
+        specifier: workspace:*
+        version: link:../../packages/solver
+      '@ocean/topology':
+        specifier: workspace:*
+        version: link:../../packages/topology
 
   apps/runner:
     dependencies:

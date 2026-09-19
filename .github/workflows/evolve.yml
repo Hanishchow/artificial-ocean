@@ -1,0 +1,76 @@
+# Keep the ocean evolving whether or not anyone is watching.
+#
+# The runner holds no state between invocations: it reads the archive, adds a
+# few generations, writes it back and exits. That is what makes an unattended
+# schedule possible at all — nothing has to stay alive, and a run continues
+# across days, restarts and machine changes.
+#
+# Committing the archive back to the repository does three jobs at once. It
+# keeps the history of the run, it triggers the Pages deploy so the exhibit
+# always shows the current population, and it keeps the repository active,
+# which stops GitHub disabling the schedule for inactivity after 60 days.
+name: Evolve
+
+on:
+  schedule:
+    # Hourly. A generation is roughly 35 seconds at these settings, so three
+    # generations sit comfortably inside a run and well inside the free tier.
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      generations:
+        description: "Generations to run"
+        default: "3"
+      run:
+        description: "Run name (archive file)"
+        default: "ocean"
+
+permissions:
+  contents: write
+
+# Never let two of these overlap. They would both read the same archive, both
+# add generations to their own copy, and the second to finish would silently
+# discard the first's work.
+concurrency:
+  group: evolve
+  cancel-in-progress: false
+
+jobs:
+  evolve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          # 22, not 20: pnpm 11 uses node:sqlite and refuses to start on
+          # anything older than 22.13.
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The economy's loopholes are pinned shut by tests. If one has been
+      # reopened, stop before spending an hour of compute exploiting it.
+      - run: pnpm test
+
+      - name: Evolve
+        run: pnpm runner evolve ${{ inputs.generations || '3' }} 22 ${{ inputs.run || 'ocean' }}
+
+      - name: Commit the archive
+        run: |
+          git config user.name "artificial-ocean"
+          git config user.email "noreply@github.com"
+          git add data/
+          # A generation that discovers and improves nothing leaves the archive
+          # byte-identical, and an empty commit would fail the step.
+          if git diff --staged --quiet; then
+            echo "archive unchanged; nothing to commit"
+          else
+            git commit -m "Evolve: $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push
+          fi

@@ -34,7 +34,11 @@ export function fitnessOf(result: EpisodeResult): number {
 
 /**
  * The behaviour vector, matching evolve's DIMENSIONS in order:
- * aspect, size, speed, straightness.
+ * aspect, size, speed, efficiency.
+ *
+ * Two of the four are measured outcomes rather than genes, which is what makes
+ * the archive a record of what creatures DID rather than of what their genomes
+ * asked for.
  */
 export function describe(
   phenotype: Phenotype,
@@ -43,11 +47,13 @@ export function describe(
   const radius = Math.max(0.001, phenotype.bounds.radius);
   const aspect = phenotype.bounds.height / (2 * radius);
 
-  const { distance, pathLength, bodyLengthsPerSecond } = result.metrics;
-  // A creature that never moved has no meaningful heading; call it straight
-  // rather than leaving the ratio undefined, since 0/0 would otherwise file
-  // every inert animal into the "swam in circles" corner.
-  const straightness = pathLength > 1e-6 ? distance / pathLength : 1;
+  const { bodyLengthsPerSecond, netEnergy, energySpent } = result.metrics;
 
-  return [aspect, radius, bodyLengthsPerSecond, straightness];
+  // Energy earned per unit spent. A creature that spent nothing because it
+  // never moved has no meaningful ratio; call it zero rather than dividing by
+  // an epsilon and filing it as infinitely efficient.
+  const gained = netEnergy + energySpent;
+  const efficiency = energySpent > 1e-6 ? gained / energySpent : 0;
+
+  return [aspect, radius, bodyLengthsPerSecond, efficiency];
 }

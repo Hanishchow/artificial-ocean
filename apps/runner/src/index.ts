@@ -9,7 +9,7 @@
  * calls is pure.
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
   type ContactSheetCell,
@@ -28,6 +28,8 @@ import {
 } from "@ocean/genome";
 import {
   Archive,
+  DIMENSIONS,
+  type ArchiveSnapshot,
   type Evaluation,
   generationRng,
   runGeneration,
@@ -204,14 +206,66 @@ function cmdEvolve(args: string[]): void {
   const runSeed = args[2] ?? "run-1";
 
   const evaluator = makeEvaluator(seconds);
-  const archive = new Archive();
-
+  const archivePath = join("data", `${runSeed}-archive.json`);
   const started = Date.now();
-  const filed = seedArchive(archive, SEEDS.map((s) => s.genome), evaluator, 4);
-  console.log(
-    `\n  seeded ${filed} creatures into ${archive.size} cells ` +
-      `(${(archive.coverage * 100).toFixed(1)}% coverage)\n`,
-  );
+
+  /*
+   * Resume if an archive is already there.
+   *
+   * This is what makes an unattended schedule possible at all: the runner holds
+   * no state between invocations, so an hourly job reads the archive, adds a
+   * couple of generations, writes it back, and the run continues across days
+   * and machine restarts without anything having to stay alive.
+   *
+   * A stored archive whose grid no longer matches the code is discarded rather
+   * than loaded. Behaviour coordinates only mean something relative to the
+   * dimensions that produced them, so reusing cells across a dimension change
+   * would silently file new creatures against old neighbours.
+   */
+  let archive = new Archive();
+  let resumedFrom = 0;
+
+  if (existsSync(archivePath)) {
+    const snapshot = JSON.parse(
+      readFileSync(archivePath, "utf8"),
+    ) as ArchiveSnapshot;
+    const sameGrid =
+      snapshot.dimensions.length === DIMENSIONS.length &&
+      snapshot.dimensions.every(
+        (d, i) =>
+          d.key === DIMENSIONS[i]!.key &&
+          d.min === DIMENSIONS[i]!.min &&
+          d.max === DIMENSIONS[i]!.max &&
+          d.bins === DIMENSIONS[i]!.bins,
+      );
+
+    if (sameGrid) {
+      archive = Archive.fromJSON(snapshot, (genes, parents, generation) =>
+        deserialiseGenes(genes.join(","), { parents, generation }),
+      );
+      // +1: the stored number is the last generation that RAN, so continuing
+      // from it would re-run it and reuse its RNG stream.
+      resumedFrom =
+        snapshot.cells.reduce((n, c) => Math.max(n, c.generation), 0) + 1;
+      console.log(
+        `\n  resumed ${archive.size} cells from ${archivePath}` +
+          ` (through generation ${resumedFrom})`,
+      );
+    } else {
+      console.log(
+        `\n  ${archivePath} uses a different behaviour grid; starting fresh`,
+      );
+    }
+  }
+
+  if (archive.size === 0) {
+    const filed = seedArchive(archive, SEEDS.map((s) => s.genome), evaluator, 4);
+    console.log(
+      `\n  seeded ${filed} creatures into ${archive.size} cells ` +
+        `(${(archive.coverage * 100).toFixed(1)}% coverage)`,
+    );
+  }
+  console.log("");
 
   console.log("   gen   eval  new  imp  fail   cells  coverage       best");
   console.log(`  ${"-".repeat(58)}`);
@@ -220,7 +274,10 @@ function cmdEvolve(args: string[]): void {
   const coverage: number[] = [];
   const mean: number[] = [];
 
-  for (let i = 0; i < generations; i++) {
+  for (let n = 0; n < generations; n++) {
+    // Generation indices continue from where the stored archive left off, so
+    // each generation's RNG stream is unique across resumes.
+    const i = resumedFrom + n;
     const stats = runGeneration(archive, i, evaluator, generationRng(runSeed, i));
     best.push(stats.bestFitness);
     coverage.push(stats.coverage);
@@ -256,7 +313,7 @@ function cmdEvolve(args: string[]): void {
     );
   }
 
-  write(join("data", `${runSeed}-archive.json`), JSON.stringify(archive.toJSON(), null, 1));
+  write(archivePath, JSON.stringify(archive.toJSON(), null, 1));
   write(
     join("sheets", `${runSeed}-progress.svg`),
     linePlotSvg([

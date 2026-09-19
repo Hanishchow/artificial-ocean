@@ -9,10 +9,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "runner": "tsx apps/runner/src/index.ts",
-    "purity": "tsc --noEmit -p packages/mathx && tsc --noEmit -p packages/core-types && tsc --noEmit -p packages/topology && tsc --noEmit -p packages/solver && tsc --noEmit -p packages/genome && tsc --noEmit -p packages/morphogen && tsc --noEmit -p packages/sim && tsc --noEmit -p packages/evolve && tsc --noEmit -p packages/devtools"
+    "purity": "tsc --noEmit -p packages/mathx && tsc --noEmit -p packages/core-types && tsc --noEmit -p packages/topology && tsc --noEmit -p packages/solver && tsc --noEmit -p packages/genome && tsc --noEmit -p packages/morphogen && tsc --noEmit -p packages/sim && tsc --noEmit -p packages/evolve && tsc --noEmit -p packages/devtools",
+    "build:engine": "esbuild apps/exhibit/src/engine.ts --bundle --format=iife --global-name=Ocean --target=es2022 --minify --outfile=apps/exhibit/dist/engine.js",
+    "build:exhibit": "pnpm build:engine && node scripts/build-exhibit.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.2",
+    "esbuild": "^0.28.2",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
