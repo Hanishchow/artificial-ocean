@@ -21,11 +21,13 @@
  */
 
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { DirectionalForce, DistanceConstraint, ParticleSystem } from "@ocean/solver";
 
-const BUNDLE =
-  "C:/Users/yakka/Downloads/@2026/JellyTech/public/static/medusae/libs.develop.js";
+// Vendored copy of JellyTech's public/static/medusae/libs.develop.js, so the
+// gate runs in CI and not only on the machine that has JellyTech checked out.
+const BUNDLE = fileURLToPath(new URL("./fixtures/libs.develop.js", import.meta.url));
 
 /**
  * The bundle is a concatenation of several libraries, each delimited by a path
